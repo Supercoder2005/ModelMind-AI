@@ -21,6 +21,40 @@ interface PipelineWalkthroughProps {
   onRefresh: () => void;
 }
 
+// Inline helper to highlight metrics, numbers, and models inside AI generated text
+function formatInsightText(text: string) {
+  if (!text) return "";
+
+  const regex = /(\b(?:ARIMA\(\d+,\d+,\d+\)|SVM|NeuralProphet|XGBoost|Random Forest|Gradient Boosting|Logistic Regression|Linear Regression|DBSCAN|K-Means|KMeans|RMSE|MAE|AIC|R²|ROC|AUC-ROC)\b)|(\b\d+(?:,\d+)*(?:\.\d+)?%?\b)/gi;
+
+  const parts = text.split(regex);
+
+  return parts.map((part, index) => {
+    if (!part) return null;
+
+    const isModelOrMetric = /^(ARIMA\(\d+,\d+,\d+\)|SVM|NeuralProphet|XGBoost|Random Forest|Gradient Boosting|Logistic Regression|Linear Regression|DBSCAN|K-Means|KMeans|RMSE|MAE|AIC|R²|ROC|AUC-ROC)$/i.test(part);
+    const isNumber = /^\d+(?:,\d+)*(?:\.\d+)?%?$/.test(part);
+
+    if (isModelOrMetric) {
+      return (
+        <span key={index} className="px-1.5 py-0.5 mx-0.5 text-xs font-mono font-semibold rounded bg-white/10 text-primary border border-white/5">
+          {part}
+        </span>
+      );
+    }
+
+    if (isNumber) {
+      return (
+        <span key={index} className="font-semibold text-emerald-400 font-mono">
+          {part}
+        </span>
+      );
+    }
+
+    return part;
+  });
+}
+
 export function PipelineWalkthrough({
   analysis,
   results,
@@ -847,7 +881,7 @@ export function PipelineWalkthrough({
                         <h4 className="text-xs font-black text-white uppercase tracking-wider">Executive summary</h4>
                       </div>
                       <p className="text-xs leading-relaxed text-muted-foreground">
-                        {conclusion.executive_summary}
+                        {formatInsightText(conclusion.executive_summary)}
                       </p>
                     </div>
 
@@ -857,7 +891,7 @@ export function PipelineWalkthrough({
                           <Layers className="w-3.5 h-3.5 text-primary shrink-0" />
                           Preprocessing Brief
                         </h5>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground">{conclusion.preprocessing_summary}</p>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">{formatInsightText(conclusion.preprocessing_summary)}</p>
                       </div>
 
                       <div className="p-4 bg-muted/15 border border-white/5 rounded-2xl space-y-1.5 hover:border-white/10 transition">
@@ -865,7 +899,7 @@ export function PipelineWalkthrough({
                           <Award className="w-3.5 h-3.5 text-primary shrink-0" />
                           Model Performance
                         </h5>
-                        <p className="text-[11px] leading-relaxed text-muted-foreground">{conclusion.model_performance_summary}</p>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">{formatInsightText(conclusion.model_performance_summary)}</p>
                       </div>
                     </div>
 
@@ -874,12 +908,12 @@ export function PipelineWalkthrough({
                         <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                         <h5 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Business Impact & Strategies</h5>
                       </div>
-                      <p className="text-xs leading-relaxed text-muted-foreground">{conclusion.business_impact}</p>
+                      <p className="text-xs leading-relaxed text-muted-foreground">{formatInsightText(conclusion.business_impact)}</p>
                     </div>
 
                     <div className="p-4 bg-black/40 border border-white/5 rounded-2xl space-y-2">
                       <h5 className="text-xs font-bold text-white">Narrative Conclusion</h5>
-                      <p className="text-xs leading-relaxed text-muted-foreground italic">"{conclusion.overall_conclusion}"</p>
+                      <p className="text-xs leading-relaxed text-muted-foreground italic">"{formatInsightText(conclusion.overall_conclusion)}"</p>
                     </div>
                   </div>
                 ) : (
