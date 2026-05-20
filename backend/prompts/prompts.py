@@ -159,16 +159,16 @@ def code_commentary_prompt(pipeline_steps: list[str], domain: str | None = None)
     domain_ctx = f'This analysis was performed on a {domain} dataset.' if domain else ""
     steps_text = "\n".join(f"{i+1}. {s}" for i, s in enumerate(pipeline_steps))
     return f"""
-You are a Python educator writing comments for a Jupyter notebook. {domain_ctx}
-
+You are Python educator writing comments for a Jupyter notebook. {domain_ctx}
+ 
 The following analysis pipeline steps were performed:
 {steps_text}
-
+ 
 For each step, write a clear, educational Markdown cell that explains WHY this step was done,
 not just what it does.
-
+ 
 Respond ONLY with a valid JSON object (no markdown, no extra text):
-
+ 
 {{
   "cells": [
     {{
@@ -177,5 +177,89 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
     }},
     ...
   ]
+}}
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# 6. Define Suggestions
+# ---------------------------------------------------------------------------
+
+def suggestions_prompt(profile: dict, domain: str | None = None) -> str:
+    domain_hint = f'The domain is: "{domain}".' if domain else "The domain is unknown."
+    return f"""
+You are an expert data science advisor. Analyze this dataset profile:
+{profile}
+
+{domain_hint}
+
+Suggest:
+1. 2-3 alternative target columns (if any) and why they would be interesting.
+2. Recommended business goals for this dataset.
+3. Recommended metrics for evaluation.
+
+Respond ONLY with a valid JSON object (no markdown, no extra text) with EXACTLY these keys:
+{{
+  "suggested_targets": [
+    {{"column": "<col_name>", "reason": "<why we should predict this column>"}}
+  ],
+  "business_goals": [
+    "<goal 1>", "<goal 2>"
+  ],
+  "metrics": [
+    {{"metric": "<metric_name>", "reason": "<why we should use this metric>"}}
+  ]
+}}
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# 7. Attribute Explanations
+# ---------------------------------------------------------------------------
+
+def attribute_explanation_prompt(columns_info: list[dict], domain: str | None = None) -> str:
+    domain_hint = f'The domain is: "{domain}".' if domain else ""
+    return f"""
+You are an expert data cataloger. {domain_hint}
+Given the list of columns, their data types, and sample values:
+{columns_info}
+
+Explain each column in exactly 2-3 lines of friendly, easy-to-understand English.
+
+Respond ONLY with a valid JSON object (no markdown, no extra text) in this format:
+{{
+  "explanations": {{
+    "<column_name_1>": "<explanation>",
+    "<column_name_2>": "<explanation>",
+    ...
+  }}
+}}
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# 8. Final Conclusion
+# ---------------------------------------------------------------------------
+
+def final_conclusion_prompt(full_results: dict, domain: str | None = None) -> str:
+    domain_hint = f'Domain: {domain}.' if domain else ""
+    return f"""
+You are a principal machine learning scientist writing the final report. {domain_hint}
+Here are the complete details of the ML pipeline execution:
+{full_results}
+
+Write a comprehensive, publication-ready final conclusion summarizing:
+1. Executive Summary: The business problem, problem type, and dataset size.
+2. Preprocessing & Feature Engineering: What was done and how it cleaned/improved features.
+3. Model Competition & Training: K-fold cross-validation results and how the winning model outperformed the others.
+4. Deployment & Business Impact: How this winning model can be used by business owners.
+
+Respond ONLY with a valid JSON object (no markdown, no extra text) with EXACTLY these keys:
+{{
+  "executive_summary": "<summary>",
+  "preprocessing_summary": "<summary>",
+  "model_performance_summary": "<summary>",
+  "business_impact": "<impact>",
+  "overall_conclusion": "<comprehensive conclusion paragraph>"
 }}
 """.strip()

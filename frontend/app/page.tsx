@@ -51,14 +51,14 @@ const FEATURES = [
     color: "text-violet-400",
     bg: "bg-violet-500/10",
     title: "Auto EDA Narrator",
-    desc: "Drop a CSV. Gemini reads it, identifies your problem type, and narrates what's interesting — in seconds.",
+    desc: "Drop a CSV. AI reads it, identifies your problem type, and narrates what's interesting — in seconds.",
   },
   {
     icon: Zap,
     color: "text-yellow-400",
     bg: "bg-yellow-500/10",
     title: "Multi-Model Battle",
-    desc: "4+ algorithms race simultaneously. The winner is selected automatically. Gemini explains why it won.",
+    desc: "4+ algorithms race simultaneously. The winner is selected automatically. AI explains why it won.",
   },
   {
     icon: Brain,
@@ -92,8 +92,8 @@ const FEATURES = [
 
 const STEPS = [
   { num: "01", title: "Upload a CSV", desc: "Drag-and-drop any CSV file. We support classification, regression, clustering, and time-series datasets." },
-  { num: "02", title: "AI Detects Everything", desc: "Gemini analyses your data profile, identifies the problem type, guesses the domain, and narrates key observations." },
-  { num: "03", title: "Models Battle & Explain", desc: "Multiple algorithms train in parallel. The winner is chosen. Gemini explains what it learned and what to do next." },
+  { num: "02", title: "AI Detects Everything", desc: "AI analyses your data profile, identifies the problem type, guesses the domain, and narrates key observations." },
+  { num: "03", title: "Models Battle & Explain", desc: "Multiple algorithms train in parallel. The winner is chosen. AI explains what it learned and what to do next." },
 ];
 
 export default function LandingPage() {
@@ -110,7 +110,7 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="secondary" className="text-xs hidden sm:flex">
-              Powered by Gemini 1.5 Pro
+              Powered by Advanced AI
             </Badge>
             <Link href="/dashboard">
               <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90 glow-violet transition-all">
@@ -142,7 +142,7 @@ export default function LandingPage() {
 
         <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
           ModelMind AI analyses any CSV with{" "}
-          <span className="text-primary font-medium">Gemini 1.5 Pro</span>,
+          <span className="text-primary font-medium">Advanced AI</span>,
           runs a multi-model battle, and explains results at{" "}
           <span className="text-accent font-medium">your expertise level</span> — from
           total beginner to PhD researcher.
@@ -187,7 +187,7 @@ export default function LandingPage() {
                   <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 text-xs">Healthcare</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  <span className="text-foreground font-medium">Gemini detected:</span> This appears to be a patient readmission dataset.
+                  <span className="text-foreground font-medium">AI detected:</span> This appears to be a patient readmission dataset.
                   The target column is likely <code className="text-primary bg-primary/10 px-1 rounded text-[11px]">readmitted</code>.
                   Interesting patterns include a strong correlation between age and diagnosis count...
                 </p>
@@ -288,12 +288,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Footer ── */}
       <footer className="border-t border-white/5 py-8 px-6 text-center text-sm text-muted-foreground">
         <p>
           Built with{" "}
           <span className="text-primary">♥</span>{" "}
-          using Next.js · FastAPI · Gemini 1.5 Pro · scikit-learn
+          using Next.js · FastAPI · Multi-LLM AI · scikit-learn
         </p>
       </footer>
     </main>

@@ -5,13 +5,44 @@ import { useStore, type ExpertiseLevel } from "@/lib/store";
 import { api } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Settings, Brain, Database, Trash2 } from "lucide-react";
+import { 
+  Settings, Brain, Database, Trash2, ShieldAlert, Sparkles,
+  Award, TrendingUp, HelpCircle, BarChart3
+} from "lucide-react";
 
-const EXPERTISE_OPTIONS: { value: ExpertiseLevel; label: string; emoji: string; desc: string }[] = [
-  { value: "beginner", label: "Beginner", emoji: "🌱", desc: "No jargon, simple analogies, percentages explained." },
-  { value: "learner", label: "Learner", emoji: "📚", desc: "Terms introduced with definitions." },
-  { value: "practitioner", label: "Practitioner", emoji: "🔬", desc: "Standard ML vocabulary — F1, AUC-ROC, RMSE." },
-  { value: "expert", label: "Expert", emoji: "🧠", desc: "Dense technical output — hyperparameters, bias-variance, CI." },
+const EXPERTISE_OPTIONS: { value: ExpertiseLevel; label: string; emoji: string; desc: string; color: string; border: string }[] = [
+  { 
+    value: "beginner", 
+    label: "Beginner Mode", 
+    emoji: "🌱", 
+    desc: "Simple analogies and percentage breakdowns. Free of mathematical jargon.",
+    color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    border: "group-hover:border-emerald-500/30"
+  },
+  { 
+    value: "learner", 
+    label: "Learner Mode", 
+    emoji: "📚", 
+    desc: "Basic definitions alongside terms. Great for learning ML fundamentals.",
+    color: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+    border: "group-hover:border-sky-500/30"
+  },
+  { 
+    value: "practitioner", 
+    label: "Practitioner Mode", 
+    emoji: "🔬", 
+    desc: "Standard ML metrics like F1-Score, precision, recall, and R² coefficients.",
+    color: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+    border: "group-hover:border-violet-500/30"
+  },
+  { 
+    value: "expert", 
+    label: "Expert Mode", 
+    emoji: "🧠", 
+    desc: "Detailed algorithmic analyses, hyperparameter tables, and confidence ranges.",
+    color: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+    border: "group-hover:border-rose-500/30"
+  },
 ];
 
 export function SettingsClient() {
@@ -24,7 +55,7 @@ export function SettingsClient() {
   }, []);
 
   const handleClearAll = async () => {
-    if (!confirm("This will delete ALL analyses and their files. Are you sure?")) return;
+    if (!confirm("This will permanently delete ALL analyses and cached files. This action is irreversible. Proceed?")) return;
     setClearing(true);
     try {
       const list = await api.listAnalyses(100);
@@ -36,88 +67,131 @@ export function SettingsClient() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-12 space-y-8">
-      <div className="animate-fade-in">
-        <div className="flex items-center gap-2 mb-1">
-          <Settings className="w-5 h-5 text-primary" />
-          <h1 className="text-2xl font-bold">Settings</h1>
+    <div className="max-w-4xl mx-auto px-6 py-10 space-y-8">
+      
+      {/* Page Title */}
+      <div className="flex items-center justify-between pb-6 border-b border-white/5 animate-fade-in">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Settings className="w-4 h-4 text-primary" />
+            <span className="text-xs font-bold text-primary uppercase tracking-widest">Configurations</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">System Settings</h1>
+          <p className="text-xs text-muted-foreground">Adjust machine learning parameters, presentation modes, and clean local workspaces.</p>
         </div>
-        <p className="text-sm text-muted-foreground">Configure your ModelMind AI experience.</p>
       </div>
 
-      {/* Expertise Level */}
-      <section className="glass rounded-2xl p-6 border border-white/8 animate-fade-in">
-        <div className="flex items-center gap-2 mb-4">
-          <Brain className="w-4 h-4 text-primary" />
-          <h2 className="text-sm font-semibold">Default Expertise Level</h2>
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Controls how Gemini explains results. Persists across sessions.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          {EXPERTISE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setExpertiseLevel(opt.value)}
-              className={`
-                p-4 rounded-xl border text-left transition-all duration-200 hover:scale-[1.01]
-                ${expertiseLevel === opt.value
-                  ? "bg-primary/10 border-primary/30"
-                  : "bg-muted/20 border-white/8 hover:border-white/15"
-                }
-              `}
-              id={`expertise-${opt.value}`}
-            >
-              <div className="text-xl mb-1">{opt.emoji}</div>
-              <div className="text-xs font-semibold mb-0.5">{opt.label}</div>
-              <div className="text-[11px] text-muted-foreground">{opt.desc}</div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* Usage Stats */}
-      {stats && (
-        <section className="glass rounded-2xl p-6 border border-white/8 animate-fade-in">
-          <div className="flex items-center gap-2 mb-4">
-            <Database className="w-4 h-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Usage Stats</h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="glass rounded-xl p-3 text-center border border-white/8">
-              <p className="text-2xl font-bold gradient-text">{stats.total_analyses}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Total Analyses</p>
-            </div>
-            {Object.entries(stats.by_problem_type).filter(([, v]) => v > 0).map(([k, v]) => (
-              <div key={k} className="glass rounded-xl p-3 text-center border border-white/8">
-                <p className="text-2xl font-bold">{v}</p>
-                <p className="text-xs text-muted-foreground mt-0.5 capitalize">{k}</p>
+      {/* Grid container */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Left Side: Parameters / Mode Selection */}
+        <div className="lg:col-span-2 space-y-6">
+          <section className="glass rounded-3xl p-6 border border-white/8 bg-muted/10 shadow-xl space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-white/5">
+              <Brain className="w-4 h-4 text-primary shrink-0" />
+              <div>
+                <h2 className="text-sm font-bold text-white">AI Explanations Level</h2>
+                <p className="text-[11px] text-muted-foreground">Tailor the feedback language generated by AI to your skillset.</p>
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+            </div>
 
-      {/* Danger Zone */}
-      <section className="rounded-2xl p-6 border border-destructive/20 bg-destructive/5 animate-fade-in">
-        <div className="flex items-center gap-2 mb-2">
-          <Trash2 className="w-4 h-4 text-destructive" />
-          <h2 className="text-sm font-semibold text-destructive">Danger Zone</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              {EXPERTISE_OPTIONS.map((opt) => {
+                const isSelected = expertiseLevel === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => setExpertiseLevel(opt.value)}
+                    className={`
+                      group p-4 rounded-2xl border text-left transition-all duration-300 relative overflow-hidden flex flex-col justify-between h-[120px] hover:scale-[1.01]
+                      ${isSelected
+                        ? "bg-primary/10 border-primary/45 shadow-[0_0_15px_rgba(var(--primary-rgb),0.1)]"
+                        : "bg-black/20 border-white/5 hover:border-white/15"
+                      }
+                    `}
+                    id={`expertise-${opt.value}`}
+                  >
+                    <div className="flex justify-between items-start w-full">
+                      <span className="text-xl">{opt.emoji}</span>
+                      {isSelected && (
+                        <Badge className="bg-primary/20 text-primary hover:bg-primary/20 text-[9px] border-none font-bold uppercase shrink-0">
+                          Active
+                        </Badge>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white mb-1 group-hover:text-primary transition-colors">
+                        {opt.label}
+                      </div>
+                      <div className="text-[10px] leading-relaxed text-muted-foreground line-clamp-2">
+                        {opt.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Permanently delete all analyses, uploaded files, and cached results from the database.
-        </p>
-        <Button
-          variant="outline"
-          className="border-destructive/30 text-destructive hover:bg-destructive/10 gap-2 text-xs"
-          onClick={handleClearAll}
-          disabled={clearing}
-          id="clear-all-btn"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          {clearing ? "Clearing..." : "Clear All History"}
-        </Button>
-      </section>
+
+        {/* Right Side: Stats & Danger zone */}
+        <div className="lg:col-span-1 space-y-6">
+          
+          {/* Stats card */}
+          {stats && (
+            <section className="glass rounded-3xl p-5 border border-white/8 bg-muted/10 shadow-xl space-y-4">
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-muted-foreground" />
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Analytic Volume</h2>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="p-4 bg-black/30 border border-white/5 rounded-2xl text-center shadow-inner">
+                  <p className="text-3xl font-black text-white">{stats.total_analyses}</p>
+                  <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">Ingested Datasets</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  {Object.entries(stats.by_problem_type)
+                    .filter(([, val]) => val > 0)
+                    .map(([key, val]) => (
+                      <div key={key} className="flex justify-between items-center text-xs p-2 bg-muted/20 rounded-xl border border-white/5">
+                        <span className="capitalize text-muted-foreground">{key}</span>
+                        <span className="font-bold text-white font-mono">{val}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Danger zone card */}
+          <section className="rounded-3xl p-5 border border-destructive/20 bg-destructive/5 space-y-4 shadow-xl">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-destructive" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-destructive">Danger Zone</h2>
+            </div>
+            
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Deletes all records from the local SQLite database and purges models, pickles, and uploaded files.
+            </p>
+
+            <Button
+              variant="outline"
+              className="w-full border-destructive/30 text-destructive hover:bg-destructive/10 gap-2 text-xs py-5 rounded-xl transition"
+              onClick={handleClearAll}
+              disabled={clearing}
+              id="clear-all-btn"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {clearing ? "Purging Files..." : "Clear Workspace"}
+            </Button>
+          </section>
+
+        </div>
+
+      </div>
+
     </div>
   );
 }

@@ -14,6 +14,8 @@ from db.models import Analysis
 from services.notebook_builder import build as build_notebook
 from services.gemini_client import gemini
 
+from routers.analysis import sanitize_json_floats
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -28,9 +30,9 @@ def _analysis_to_dict(a: Analysis) -> dict:
         "shape_cols": a.shape_cols,
         "target_col": a.target_col,
         "winning_model": a.winning_model,
-        "eda_result": a.eda_result or {},
-        "results_json": a.results_json or {},
-        "profile": a.profile or {},
+        "eda_result": sanitize_json_floats(a.eda_result) or {},
+        "results_json": sanitize_json_floats(a.results_json) or {},
+        "profile": sanitize_json_floats(a.profile) or {},
     }
 
 

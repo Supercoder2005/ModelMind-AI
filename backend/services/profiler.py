@@ -40,14 +40,30 @@ def profile(df: pd.DataFrame) -> dict[str, Any]:
             info["max"] = _safe_float(desc.get("max"))
             info["q25"] = _safe_float(desc.get("25%"))
             info["q75"] = _safe_float(desc.get("75%"))
-            try:
-                info["skewness"] = round(float(df[col].skew()), 4)
-            except Exception:
-                info["skewness"] = None
+            info["skewness"] = _safe_float(df[col].skew())
+
+            # Outlier detection using IQR
+            q25_val = df[col].quantile(0.25)
+            q75_val = df[col].quantile(0.75)
+            iqr = q75_val - q25_val
+            lower = q25_val - 1.5 * iqr
+            upper = q75_val + 1.5 * iqr
+            outlier_series = df[(df[col] < lower) | (df[col] > upper)][col]
+            outliers_cnt = int(outlier_series.count())
+            info["outliers_count"] = outliers_cnt
+            info["outliers_pct"] = _safe_float(outliers_cnt / len(df) * 100) if len(df) > 0 else 0.0
         else:
             # Categorical / object — top 10 values
             top = df[col].value_counts().head(10)
             info["top_values"] = {str(k): int(v) for k, v in top.items()}
+
+        # Class balance and distribution checks for potential target columns (categoricals or low-cardinality numerics)
+        if not pd.api.types.is_numeric_dtype(df[col]) or info["unique_count"] <= 20:
+            counts = df[col].value_counts()
+            if len(counts) > 0:
+                min_class_pct = (counts.min() / len(df)) * 100
+                info["is_imbalanced"] = bool(min_class_pct < 15.0 and len(counts) > 1)
+                info["class_distribution"] = {str(k): round(float(v / len(df) * 100), 2) for k, v in counts.head(10).items()}
 
         columns_info[col] = info
 

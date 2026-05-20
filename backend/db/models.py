@@ -25,6 +25,7 @@ class Analysis(Base):
     winning_model = Column(String, nullable=True)
     name = Column(String, nullable=True)
     is_favorite = Column(Boolean, default=False)
+    user_goals = Column(String, nullable=True)
 
     # Full results blob from ML runner
     results_json = Column(JSON, nullable=True)

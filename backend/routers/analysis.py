@@ -6,18 +6,41 @@ DELETE /api/v1/analysis/{id} — delete analysis + files
 GET  /api/v1/stats           — usage stats
 """
 import os
+import math
 import logging
+import numpy as np
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from db.database import get_db
 from db.models import Analysis
+from services.gemini_client import gemini
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
+
+
+def sanitize_json_floats(obj):
+    if pd.isna(obj) if isinstance(obj, (float, np.floating, str, type(None))) or str(type(obj)) == "<class 'pandas._libs.missing.NAType'>" else False:
+        return None
+    if isinstance(obj, (float, np.floating)):
+        f = float(obj)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return f
+    elif isinstance(obj, (int, np.integer)):
+        return int(obj)
+    elif isinstance(obj, dict):
+        return {k: sanitize_json_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_json_floats(x) for x in obj]
+    elif isinstance(obj, tuple):
+        return tuple(sanitize_json_floats(x) for x in obj)
+    return obj
 
 
 def _to_dict(a: Analysis) -> dict:
@@ -33,9 +56,10 @@ def _to_dict(a: Analysis) -> dict:
         "winning_model": a.winning_model,
         "name": a.name,
         "is_favorite": a.is_favorite,
-        "eda_result": a.eda_result,
-        "profile": a.profile,
-        "results_json": a.results_json,
+        "user_goals": a.user_goals,
+        "eda_result": sanitize_json_floats(a.eda_result),
+        "profile": sanitize_json_floats(a.profile),
+        "results_json": sanitize_json_floats(a.results_json),
     }
 
 
@@ -61,6 +85,7 @@ def get_analysis(analysis_id: str, db: Session = Depends(get_db)):
 class PatchPayload(BaseModel):
     name: str | None = None
     is_favorite: bool | None = None
+    user_goals: str | None = None
 
 
 @router.patch("/analysis/{analysis_id}")
@@ -72,6 +97,8 @@ def patch_analysis(analysis_id: str, payload: PatchPayload, db: Session = Depend
         record.name = payload.name
     if payload.is_favorite is not None:
         record.is_favorite = payload.is_favorite
+    if payload.user_goals is not None:
+        record.user_goals = payload.user_goals
     db.commit()
     return _to_dict(record)
 
@@ -106,3 +133,60 @@ def get_stats(db: Session = Depends(get_db)):
         "total_analyses": total,
         "by_problem_type": by_type,
     }
+
+
+@router.get("/analysis/{analysis_id}/suggestions")
+def get_suggestions(analysis_id: str, db: Session = Depends(get_db)):
+    record = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    if not record.profile:
+        raise HTTPException(status_code=422, detail="No profile data found. Please run EDA first.")
+    
+    try:
+        suggestions = gemini.get_suggestions(record.profile, record.domain)
+        return suggestions
+    except Exception as e:
+        logger.error("Failed to generate suggestions: %s", e)
+        raise HTTPException(status_code=500, detail=f"Could not generate suggestions: {e}")
+
+
+@router.get("/analysis/{analysis_id}/attributes")
+def get_attributes(analysis_id: str, db: Session = Depends(get_db)):
+    record = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    if not record.profile or "column_details" not in record.profile:
+        raise HTTPException(status_code=422, detail="No profile data found.")
+
+    cols = []
+    for col, detail in record.profile["column_details"].items():
+        cols.append({
+            "name": col,
+            "dtype": detail.get("dtype"),
+            "unique_count": detail.get("unique_count"),
+            "sample_values": list(detail.get("top_values", {}).keys())[:3] if "top_values" in detail else [detail.get("mean"), detail.get("min"), detail.get("max")]
+        })
+
+    try:
+        explanations = gemini.explain_attributes(cols, record.domain)
+        return explanations
+    except Exception as e:
+        logger.error("Failed to explain attributes: %s", e)
+        raise HTTPException(status_code=500, detail=f"Could not explain attributes: {e}")
+
+
+@router.get("/analysis/{analysis_id}/conclusion")
+def get_conclusion(analysis_id: str, db: Session = Depends(get_db)):
+    record = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Analysis not found.")
+    if not record.results_json:
+        raise HTTPException(status_code=422, detail="No training results found. Please run the model competition first.")
+    
+    try:
+        conclusion = gemini.generate_conclusion(record.results_json, record.domain)
+        return conclusion
+    except Exception as e:
+        logger.error("Failed to generate conclusion: %s", e)
+        raise HTTPException(status_code=500, detail=f"Could not generate conclusion: {e}")

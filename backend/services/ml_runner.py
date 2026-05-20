@@ -13,7 +13,7 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso
@@ -37,28 +37,138 @@ UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 
 
 # ---------------------------------------------------------------------------
-# Preprocessing helpers
+# Preprocessing & Feature Engineering helpers
 # ---------------------------------------------------------------------------
 
-def _preprocess(df: pd.DataFrame, target_col: str | None):
+def pipeline_preprocess_and_engineer(df: pd.DataFrame, target_col: str | None, problem_type: str):
     """
-    Basic preprocessing: encode categoricals, drop all-null cols.
-    Returns X, y (y=None for clustering), and the fitted pipeline.
+    Standard pipeline:
+    1. Clean (impute missing)
+    2. Feature creation (extract date features, numeric interactions)
+    3. Encode categoricals
+    4. Feature selection (drop highly correlated features)
+    5. Scale numeric columns
+    
+    Returns: X, y, preprocessing_logs, feature_logs
     """
-    df = df.copy().dropna(axis=1, how="all")
+    df = df.copy()
+    preprocessing_logs = []
+    feature_logs = []
 
-    # Encode object columns
+    # 1. Clean missing values
+    for col in df.columns:
+        if col == target_col:
+            continue
+        missing = df[col].isna().sum()
+        if missing > 0:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                median = df[col].median()
+                df[col] = df[col].fillna(median)
+                preprocessing_logs.append(f"Imputed {missing} missing values in '{col}' using median ({median})")
+            else:
+                mode = df[col].mode().iloc[0] if not df[col].mode().empty else "Unknown"
+                df[col] = df[col].fillna(mode)
+                preprocessing_logs.append(f"Imputed {missing} missing values in '{col}' using mode ({mode})")
+
+    # 2. Feature creation
+    # Extract date features
+    for col in df.columns:
+        if col == target_col:
+            continue
+        if pd.api.types.is_datetime64_any_dtype(df[col]) or str(df[col].dtype) == "object":
+            try:
+                converted = pd.to_datetime(df[col], errors='raise')
+                df[f"{col}_year"] = converted.dt.year
+                df[f"{col}_month"] = converted.dt.month
+                df[f"{col}_day"] = converted.dt.day
+                df[f"{col}_dayofweek"] = converted.dt.dayofweek
+                df = df.drop(columns=[col])
+                feature_logs.append(f"Extracted year, month, day, dayofweek from date column '{col}'")
+            except Exception:
+                pass
+
+    # Numeric interactions (create interactions for top 3 highest variance numeric columns)
+    if problem_type in ("classification", "regression"):
+        numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c]) and c != target_col]
+        if len(numeric_cols) >= 2:
+            variances = df[numeric_cols].var().sort_values(ascending=False)
+            top_var_cols = variances.index.tolist()[:3]
+            if len(top_var_cols) >= 2:
+                col1, col2 = top_var_cols[0], top_var_cols[1]
+                new_col = f"{col1}_x_{col2}"
+                df[new_col] = df[col1] * df[col2]
+                feature_logs.append(f"Created interaction term '{new_col}' = {col1} * {col2}")
+
+    # 3. Encode categoricals
+    for col in df.columns:
+        if col == target_col:
+            continue
+        if pd.api.types.is_numeric_dtype(df[col]) is False:
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col].astype(str))
+            preprocessing_logs.append(f"Encoded categorical column '{col}' using LabelEncoder")
+
+    if target_col and target_col in df.columns:
+        X = df.drop(columns=[target_col])
+        y = df[target_col]
+        if problem_type == "classification" and not pd.api.types.is_numeric_dtype(y):
+            le_target = LabelEncoder()
+            y = pd.Series(le_target.fit_transform(y.astype(str)), index=y.index)
+            preprocessing_logs.append(f"Encoded target column '{target_col}' for classification")
+    else:
+        X = df
+        y = None
+
+    # 4. Drop highly correlated features (collinearity selection)
+    if len(X.columns) > 1:
+        corr_matrix = X.corr().abs()
+        upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        to_drop = [column for column in upper_tri.columns if any(upper_tri[column] > 0.85)]
+        if to_drop:
+            X = X.drop(columns=to_drop)
+            feature_logs.append(f"Dropped collinear features (>0.85 correlation): {', '.join(to_drop)}")
+
+    # 5. Scale numeric columns
+    numeric_cols_final = [c for c in X.columns if pd.api.types.is_numeric_dtype(X[c])]
+    if numeric_cols_final:
+        scaler = StandardScaler()
+        X[numeric_cols_final] = scaler.fit_transform(X[numeric_cols_final])
+        preprocessing_logs.append(f"Scaled numeric features with StandardScaler: {', '.join(numeric_cols_final)}")
+
+    return X, y, preprocessing_logs, feature_logs
+
+
+def pipeline_train_val_test_split(X, y):
+    """
+    Split into Train (70%), Val (15%), and Test (15%).
+    """
+    if y is None:
+        n = len(X)
+        indices = np.random.permutation(n)
+        train_idx = indices[:int(n * 0.7)]
+        val_idx = indices[int(n * 0.7):int(n * 0.85)]
+        test_idx = indices[int(n * 0.85):]
+        return X.iloc[train_idx], X.iloc[val_idx], X.iloc[test_idx], None, None, None
+
+    X_temp, X_test, y_temp, y_test = train_test_split(X, y, test_size=0.15, random_state=42)
+    # 0.15 / 0.85 = 0.17647
+    X_train, X_val, y_train, y_val = train_test_split(X_temp, y_temp, test_size=0.17647, random_state=42)
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+def _preprocess(df: pd.DataFrame, target_col: str | None):
+    # Backward compatibility
+    df = df.copy().dropna(axis=1, how="all")
     for col in df.select_dtypes(include=["object", "category"]).columns:
         le = LabelEncoder()
         df[col] = le.fit_transform(df[col].astype(str))
-
     if target_col and target_col in df.columns:
         X = df.drop(columns=[target_col])
         y = df[target_col]
     else:
         X = df
         y = None
-
     return X, y
 
 
@@ -70,14 +180,34 @@ def _split(X, y):
 # Classification
 # ---------------------------------------------------------------------------
 
-def _run_classification_model(name: str, model, X_train, X_test, y_train, y_test):
+def _run_classification_model(name: str, model, X_train, X_val, X_test, y_train, y_val, y_test):
     t0 = time.time()
     pipe = Pipeline([("scaler", StandardScaler()), ("clf", model)])
     pipe.fit(X_train, y_train)
-    y_pred = pipe.predict(X_test)
     elapsed = round(time.time() - t0, 3)
 
-    # AUC-ROC (binary or multiclass OvR)
+    # 1. K-Fold Cross Validation on Train set
+    try:
+        cv_scores = cross_val_score(pipe, X_train, y_train, cv=5, scoring='f1_weighted')
+        cv_mean = round(float(np.mean(cv_scores)), 4)
+        cv_std = round(float(np.std(cv_scores)), 4)
+    except Exception:
+        cv_mean = 0.0
+        cv_std = 0.0
+
+    # 2. Validation Set Evaluation
+    y_val_pred = pipe.predict(X_val)
+    val_acc = round(accuracy_score(y_val, y_val_pred), 4)
+    val_f1 = round(f1_score(y_val, y_val_pred, average="weighted", zero_division=0), 4)
+
+    # 3. Test Set Evaluation
+    y_test_pred = pipe.predict(X_test)
+    test_acc = round(accuracy_score(y_test, y_test_pred), 4)
+    test_f1 = round(f1_score(y_test, y_test_pred, average="weighted", zero_division=0), 4)
+    test_precision = round(precision_score(y_test, y_test_pred, average="weighted", zero_division=0), 4)
+    test_recall = round(recall_score(y_test, y_test_pred, average="weighted", zero_division=0), 4)
+
+    # AUC-ROC on Test Set
     try:
         if hasattr(pipe, "predict_proba"):
             y_prob = pipe.predict_proba(X_test)
@@ -91,14 +221,18 @@ def _run_classification_model(name: str, model, X_train, X_test, y_train, y_test
     except Exception:
         auc = None
 
-    cm = confusion_matrix(y_test, y_pred).tolist()
+    cm = confusion_matrix(y_test, y_test_pred).tolist()
 
     result = {
         "name": name,
-        "accuracy": round(accuracy_score(y_test, y_pred), 4),
-        "f1": round(f1_score(y_test, y_pred, average="weighted", zero_division=0), 4),
-        "precision": round(precision_score(y_test, y_pred, average="weighted", zero_division=0), 4),
-        "recall": round(recall_score(y_test, y_pred, average="weighted", zero_division=0), 4),
+        "cv_mean": cv_mean,
+        "cv_std": cv_std,
+        "val_accuracy": val_acc,
+        "val_f1": val_f1,
+        "accuracy": test_acc,
+        "f1": test_f1,
+        "precision": test_precision,
+        "recall": test_recall,
         "auc_roc": auc,
         "training_time_s": elapsed,
         "confusion_matrix": cm,
@@ -109,13 +243,17 @@ def _run_classification_model(name: str, model, X_train, X_test, y_train, y_test
     if hasattr(clf, "feature_importances_"):
         fi = dict(zip(X_train.columns.tolist(), clf.feature_importances_.round(4).tolist()))
         result["feature_importances"] = dict(sorted(fi.items(), key=lambda x: x[1], reverse=True)[:15])
+    elif hasattr(clf, "coef_"):
+        coef = np.abs(clf.coef_[0]) if clf.coef_.ndim > 1 else np.abs(clf.coef_)
+        fi = dict(zip(X_train.columns.tolist(), coef.round(4).tolist()))
+        result["feature_importances"] = dict(sorted(fi.items(), key=lambda x: x[1], reverse=True)[:15])
 
     return result, pipe
 
 
 def run_classification(df: pd.DataFrame, target_col: str, analysis_id: str):
-    X, y = _preprocess(df, target_col)
-    X_train, X_test, y_train, y_test = _split(X, y)
+    X, y, prep_logs, feat_logs = pipeline_preprocess_and_engineer(df, target_col, "classification")
+    X_train, X_val, X_test, y_train, y_val, y_test = pipeline_train_val_test_split(X, y)
 
     models = {
         "Logistic Regression": LogisticRegression(max_iter=500, random_state=42),
@@ -129,7 +267,7 @@ def run_classification(df: pd.DataFrame, target_col: str, analysis_id: str):
 
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {
-            executor.submit(_run_classification_model, name, model, X_train, X_test, y_train, y_test): name
+            executor.submit(_run_classification_model, name, model, X_train, X_val, X_test, y_train, y_val, y_test): name
             for name, model in models.items()
         }
         for future in as_completed(futures):
@@ -144,11 +282,6 @@ def run_classification(df: pd.DataFrame, target_col: str, analysis_id: str):
     results.sort(key=lambda r: r["f1"], reverse=True)
     winner_name = results[0]["name"]
 
-    # Save winner model
-    if winner_pipe:
-        pipe_obj, pipe_name = winner_pipe
-        # re-find the correct pipe
-        pass
     _save_winner(models[winner_name], X_train, y_train, X, analysis_id)
 
     return {
@@ -157,8 +290,14 @@ def run_classification(df: pd.DataFrame, target_col: str, analysis_id: str):
         "winner": winner_name,
         "target_col": target_col,
         "feature_names": X.columns.tolist(),
-        "classes": sorted(y.unique().tolist()),
-        "test_size": len(X_test),
+        "classes": sorted(y.unique().tolist()) if hasattr(y, "unique") else [0, 1],
+        "preprocessing_logs": prep_logs,
+        "feature_engineering_logs": feat_logs,
+        "split_info": {
+            "train_size": len(X_train),
+            "val_size": len(X_val),
+            "test_size": len(X_test),
+        }
     }
 
 
@@ -166,35 +305,61 @@ def run_classification(df: pd.DataFrame, target_col: str, analysis_id: str):
 # Regression
 # ---------------------------------------------------------------------------
 
-def _run_regression_model(name: str, model, X_train, X_test, y_train, y_test):
+def _run_regression_model(name: str, model, X_train, X_val, X_test, y_train, y_val, y_test):
     t0 = time.time()
     pipe = Pipeline([("scaler", StandardScaler()), ("reg", model)])
     pipe.fit(X_train, y_train)
-    y_pred = pipe.predict(X_test)
     elapsed = round(time.time() - t0, 3)
 
-    rmse = round(float(np.sqrt(mean_squared_error(y_test, y_pred))), 4)
+    # 1. K-Fold CV on Train set
+    try:
+        cv_scores = cross_val_score(pipe, X_train, y_train, cv=5, scoring='r2')
+        cv_mean = round(float(np.mean(cv_scores)), 4)
+        cv_std = round(float(np.std(cv_scores)), 4)
+    except Exception:
+        cv_mean = 0.0
+        cv_std = 0.0
+
+    # 2. Validation Set
+    y_val_pred = pipe.predict(X_val)
+    val_r2 = round(float(r2_score(y_val, y_val_pred)), 4)
+    val_rmse = round(float(np.sqrt(mean_squared_error(y_val, y_val_pred))), 4)
+
+    # 3. Test Set
+    y_test_pred = pipe.predict(X_test)
+    test_r2 = round(float(r2_score(y_test, y_test_pred)), 4)
+    test_rmse = round(float(np.sqrt(mean_squared_error(y_test, y_test_pred))), 4)
+    test_mae = round(float(mean_absolute_error(y_test, y_test_pred)), 4)
+
     result = {
         "name": name,
-        "rmse": rmse,
-        "mae": round(float(mean_absolute_error(y_test, y_pred)), 4),
-        "r2": round(float(r2_score(y_test, y_pred)), 4),
+        "cv_mean": cv_mean,
+        "cv_std": cv_std,
+        "val_r2": val_r2,
+        "val_rmse": val_rmse,
+        "r2": test_r2,
+        "rmse": test_rmse,
+        "mae": test_mae,
         "training_time_s": elapsed,
         "y_test": y_test.tolist()[:200],
-        "y_pred": y_pred.tolist()[:200],
+        "y_pred": y_test_pred.tolist()[:200],
     }
 
     reg = pipe.named_steps["reg"]
     if hasattr(reg, "feature_importances_"):
         fi = dict(zip(X_train.columns.tolist(), reg.feature_importances_.round(4).tolist()))
         result["feature_importances"] = dict(sorted(fi.items(), key=lambda x: x[1], reverse=True)[:15])
+    elif hasattr(reg, "coef_"):
+        coef = np.abs(reg.coef_)
+        fi = dict(zip(X_train.columns.tolist(), coef.round(4).tolist()))
+        result["feature_importances"] = dict(sorted(fi.items(), key=lambda x: x[1], reverse=True)[:15])
 
     return result, pipe
 
 
 def run_regression(df: pd.DataFrame, target_col: str, analysis_id: str):
-    X, y = _preprocess(df, target_col)
-    X_train, X_test, y_train, y_test = _split(X, y)
+    X, y, prep_logs, feat_logs = pipeline_preprocess_and_engineer(df, target_col, "regression")
+    X_train, X_val, X_test, y_train, y_val, y_test = pipeline_train_val_test_split(X, y)
 
     models = {
         "Linear Regression": LinearRegression(),
@@ -204,15 +369,18 @@ def run_regression(df: pd.DataFrame, target_col: str, analysis_id: str):
     }
 
     results = []
+    winner_pipe = None
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {
-            executor.submit(_run_regression_model, name, model, X_train, X_test, y_train, y_test): name
+            executor.submit(_run_regression_model, name, model, X_train, X_val, X_test, y_train, y_val, y_test): name
             for name, model in models.items()
         }
         for future in as_completed(futures):
             try:
-                res, _ = future.result()
+                res, pipe = future.result()
                 results.append(res)
+                if winner_pipe is None or res["r2"] > max(r["r2"] for r in results[:-1] or [{"r2": -9999}]):
+                    winner_pipe = (pipe, res["name"])
             except Exception as e:
                 logger.error("Regression model failed: %s — %s", futures[future], e)
 
@@ -226,7 +394,13 @@ def run_regression(df: pd.DataFrame, target_col: str, analysis_id: str):
         "winner": winner_name,
         "target_col": target_col,
         "feature_names": X.columns.tolist(),
-        "test_size": len(X_test),
+        "preprocessing_logs": prep_logs,
+        "feature_engineering_logs": feat_logs,
+        "split_info": {
+            "train_size": len(X_train),
+            "val_size": len(X_val),
+            "test_size": len(X_test),
+        }
     }
 
 
@@ -249,9 +423,8 @@ def _elbow_k(X_scaled: np.ndarray) -> int:
 
 
 def run_clustering(df: pd.DataFrame, analysis_id: str):
-    X, _ = _preprocess(df, None)
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    X, _, prep_logs, feat_logs = pipeline_preprocess_and_engineer(df, None, "clustering")
+    X_scaled = X.values
 
     best_k = _elbow_k(X_scaled)
 
@@ -328,6 +501,8 @@ def run_clustering(df: pd.DataFrame, analysis_id: str):
         "scatter_data": scatter_data[:500],  # cap for response size
         "centroids": centroids,
         "feature_names": X.columns.tolist(),
+        "preprocessing_logs": prep_logs,
+        "feature_engineering_logs": feat_logs,
     }
 
 

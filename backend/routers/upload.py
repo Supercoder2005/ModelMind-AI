@@ -6,7 +6,9 @@ Profiles the data, calls Gemini for problem detection, saves to DB.
 """
 import os
 import uuid
+import math
 import logging
+import json
 import pandas as pd
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -18,6 +20,29 @@ from services.gemini_client import gemini
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+import numpy as np
+
+
+def sanitize_json_floats(obj):
+    # Check for pandas/numpy null types
+    if pd.isna(obj) if isinstance(obj, (float, np.floating, str, type(None))) or str(type(obj)) == "<class 'pandas._libs.missing.NAType'>" else False:
+        return None
+    if isinstance(obj, (float, np.floating)):
+        f = float(obj)
+        if math.isnan(f) or math.isinf(f):
+            return None
+        return f
+    elif isinstance(obj, (int, np.integer)):
+        return int(obj)
+    elif isinstance(obj, dict):
+        return {k: sanitize_json_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_json_floats(x) for x in obj]
+    elif isinstance(obj, tuple):
+        return tuple(sanitize_json_floats(x) for x in obj)
+    return obj
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -69,6 +94,10 @@ async def upload_file(
             "narrative": "Could not connect to Gemini. Manual configuration required.",
         }
 
+    # Sanitize any out-of-range float values (like NaN, Inf) to ensure JSON compliance
+    data_profile = sanitize_json_floats(data_profile)
+    eda_result = sanitize_json_floats(eda_result)
+
     # ----- Persist to DB -----
     record = Analysis(
         id=analysis_id,
@@ -87,10 +116,30 @@ async def upload_file(
     db.commit()
     db.refresh(record)
 
-    return {
+    ret = {
         "analysis_id": analysis_id,
         "filename": file.filename,
         "shape": data_profile["shape"],
         "profile": data_profile,
         "eda_result": eda_result,
     }
+
+    ret = sanitize_json_floats(ret)
+
+    # Locating non-serializable elements
+    def debug_find_non_serializable(obj, path=""):
+        try:
+            json.dumps(obj, allow_nan=False)
+        except ValueError as e:
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    debug_find_non_serializable(v, f"{path}.{k}")
+            elif isinstance(obj, list):
+                for i, x in enumerate(obj):
+                    debug_find_non_serializable(x, f"{path}[{i}]")
+            else:
+                print(f"SERVER SIDE: Non-serializable object at path: {path} | Type: {type(obj)} | Value: {obj}", flush=True)
+
+    debug_find_non_serializable(ret)
+
+    return ret

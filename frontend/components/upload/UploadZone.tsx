@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { api, type EdaResult, type DataProfile } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, FileText, Sparkles, CheckCircle2, AlertCircle, Play, RefreshCw, Lightbulb, ArrowRight } from "lucide-react";
 
 const DOMAINS = [
   "Auto-detect",
@@ -27,7 +28,7 @@ const STAGE_LABELS: Record<Stage, string> = {
   idle: "",
   uploading: "Uploading file...",
   profiling: "Profiling dataset...",
-  detecting: "Gemini is detecting problem type...",
+  detecting: "AI is detecting problem type...",
   done: "Analysis ready!",
   error: "Upload failed.",
 };
@@ -43,6 +44,13 @@ export function UploadZone() {
   const [profile, setProfile] = useState<DataProfile | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
 
+  // Fallback goals/suggestions state
+  const [uploadedId, setUploadedId] = useState<string | null>(null);
+  const [userGoals, setUserGoals] = useState("");
+  const [suggestions, setSuggestions] = useState<any>(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [submittingGoals, setSubmittingGoals] = useState(false);
+
   const onDrop = useCallback(
     async (accepted: File[]) => {
       const file = accepted[0];
@@ -50,6 +58,9 @@ export function UploadZone() {
       setFilename(file.name);
       setError(null);
       setEda(null);
+      setUploadedId(null);
+      setUserGoals("");
+      setSuggestions(null);
 
       try {
         setStage("uploading");
@@ -69,6 +80,7 @@ export function UploadZone() {
         setStage("done");
         setEda(res.eda_result);
         setProfile(res.profile);
+        setUploadedId(res.analysis_id);
 
         // Update sidebar history
         const mockAnalysis = {
@@ -83,20 +95,26 @@ export function UploadZone() {
           winning_model: null,
           name: null,
           is_favorite: false,
+          user_goals: null,
           eda_result: res.eda_result,
           profile: res.profile,
           results_json: null,
         };
         upsertHistory(mockAnalysis);
 
-        // Navigate to analysis page after short delay
-        setTimeout(() => router.push(`/analysis/${res.analysis_id}`), 1200);
+        // Fetch suggested questions using LLM in the background
+        setLoadingSuggestions(true);
+        api.getSuggestions(res.analysis_id)
+          .then((sug) => setSuggestions(sug))
+          .catch((err) => console.error("Failed to fetch suggestions:", err))
+          .finally(() => setLoadingSuggestions(false));
+
       } catch (err: unknown) {
         setStage("error");
         setError(err instanceof Error ? err.message : "Upload failed");
       }
     },
-    [domain, router, upsertHistory]
+    [domain, upsertHistory]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -107,6 +125,107 @@ export function UploadZone() {
   });
 
   const isActive = stage !== "idle" && stage !== "error";
+
+  // If upload succeeded, show Goals & Intentions Input page
+  if (stage === "done" && uploadedId) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+        {/* Success Alert Banner */}
+        <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-3">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <h4 className="font-bold text-sm text-white">Dataset uploaded successfully!</h4>
+            <p className="text-xs text-muted-foreground leading-relaxed mt-0.5 truncate">
+              {filename} ({profile?.shape.rows.toLocaleString()} rows, {profile?.shape.cols} columns)
+            </p>
+          </div>
+        </div>
+
+        {/* Goals Input Card */}
+        <div className="glass rounded-3xl p-6 border border-white/10 space-y-5 shadow-2xl backdrop-blur-md relative overflow-hidden border-t-primary/20 border-t-2">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary leading-none block mb-1">Step 2 / Configuration</span>
+            <h3 className="font-black text-lg text-white">Define Your Project Goals</h3>
+            <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+              Specify what you want to achieve or predict with this dataset. You can type your goal directly or select one of the suggested questions below.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+              Analysis Objectives & Goals
+            </label>
+            <textarea
+              value={userGoals}
+              onChange={(e) => setUserGoals(e.target.value)}
+              placeholder="e.g., I want to classify Iris flower varieties based on sepal and petal features, or check which attributes are most influential."
+              className="w-full min-h-[90px] bg-black/40 border border-white/8 rounded-2xl p-4 text-xs text-white placeholder-muted-foreground focus:outline-none focus:border-primary/50 transition-colors"
+            />
+          </div>
+
+          {/* Suggested Questions */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-1.5">
+              <Lightbulb className="w-4 h-4 text-primary shrink-0" />
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Suggested Questions (AI Generated)
+              </span>
+            </div>
+
+            {loadingSuggestions ? (
+              <div className="flex items-center gap-2 p-4 rounded-2xl bg-black/10 border border-white/5 text-xs text-muted-foreground">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-primary shrink-0" />
+                Analyzing dataset columns to generate tailored machine learning goals...
+              </div>
+            ) : suggestions?.business_goals?.length ? (
+              <div className="grid grid-cols-1 gap-2.5 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin">
+                {suggestions.business_goals.map((goal: string, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => setUserGoals(goal)}
+                    className="w-full text-left p-3 rounded-xl border border-white/5 bg-black/20 hover:bg-primary/5 hover:border-primary/20 text-xs text-muted-foreground hover:text-white transition duration-200"
+                  >
+                    {goal}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">No suggestions available.</p>
+            )}
+          </div>
+
+          {/* Start Button */}
+          <div className="pt-4 border-t border-white/5 flex justify-end">
+            <Button
+              onClick={async () => {
+                setSubmittingGoals(true);
+                try {
+                  if (userGoals.trim()) {
+                    await api.patchAnalysis(uploadedId, { user_goals: userGoals });
+                  }
+                  // Redirect to page with run=true to start pipeline immediately
+                  router.push(`/analysis/${uploadedId}?run=true`);
+                } catch (e) {
+                  console.error("Failed to save goals:", e);
+                } finally {
+                  setSubmittingGoals(false);
+                }
+              }}
+              disabled={submittingGoals}
+              className="gap-2 px-6 py-2 rounded-xl text-xs"
+            >
+              {submittingGoals ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+              Start Analysis & ML Pipeline
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-5 animate-fade-in">
@@ -153,12 +272,6 @@ export function UploadZone() {
             <p className="text-sm text-muted-foreground mb-3">or click to browse</p>
             <Badge variant="secondary" className="text-xs">Supports .csv files up to any size</Badge>
           </>
-        ) : stage === "done" ? (
-          <>
-            <CheckCircle2 className="w-12 h-12 text-green-400 mb-3" />
-            <p className="font-semibold text-base text-green-400">Upload complete!</p>
-            <p className="text-sm text-muted-foreground mt-1">Redirecting to analysis...</p>
-          </>
         ) : (
           <>
             <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4">
@@ -187,7 +300,7 @@ export function UploadZone() {
             <div>
               <h3 className="font-semibold text-sm mb-1 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
-                Gemini EDA Result
+                AI EDA Result
               </h3>
               <p className="text-xs text-muted-foreground leading-relaxed max-w-lg">{eda.narrative}</p>
             </div>

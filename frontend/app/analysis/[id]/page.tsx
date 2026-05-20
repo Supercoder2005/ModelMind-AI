@@ -15,6 +15,7 @@ import { ModelBattleTab } from "@/components/models/ModelBattleTab";
 import { ResultsTab } from "@/components/results/ResultsTab";
 import { ExplainTab } from "@/components/explain/ExplainTab";
 import { WhatIfTab } from "@/components/whatif/WhatIfTab";
+import { PipelineWalkthrough } from "@/components/pipeline/PipelineWalkthrough";
 import {
   BarChart2, Brain, FlaskConical, Lightbulb, Wand2,
   Download, Play, RefreshCw, Trophy
@@ -37,6 +38,7 @@ export default function AnalysisPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [viewMode, setViewMode] = useState<"pipeline" | "tabs">("pipeline");
 
   // Load analysis record
   useEffect(() => {
@@ -74,6 +76,19 @@ export default function AnalysisPage() {
       setRunning(false);
     }
   };
+
+  // Auto-run models if ?run=true is set
+  useEffect(() => {
+    if (analysis && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("run") === "true" && !results && !running) {
+        // Clear param from URL to avoid re-runs on refresh
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, "", newUrl);
+        runModels();
+      }
+    }
+  }, [analysis, results, running]);
 
   const handleExport = () => {
     if (!id) return;
@@ -139,7 +154,31 @@ export default function AnalysisPage() {
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-4 shrink-0">
+                {/* View Mode Toggler */}
+                <div className="flex bg-muted/40 border border-white/8 rounded-xl p-0.5 shrink-0">
+                  <button
+                    onClick={() => setViewMode("pipeline")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                      viewMode === "pipeline" 
+                        ? "bg-primary text-primary-foreground shadow" 
+                        : "text-muted-foreground hover:text-white"
+                    }`}
+                  >
+                    11-Step Pipeline
+                  </button>
+                  <button
+                    onClick={() => setViewMode("tabs")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                      viewMode === "tabs" 
+                        ? "bg-primary text-primary-foreground shadow" 
+                        : "text-muted-foreground hover:text-white"
+                    }`}
+                  >
+                    Expert Tabs
+                  </button>
+                </div>
+
                 {results?.winner && (
                   <div className="flex items-center gap-1.5 text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 rounded-full">
                     <Trophy className="w-3 h-3" />
@@ -206,61 +245,73 @@ export default function AnalysisPage() {
                   <span className="text-sm font-medium">Training models in parallel...</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Running 4+ algorithms simultaneously. Gemini will explain the results after.
+                  Running 4+ algorithms simultaneously. AI will explain the results after.
                   This may take 30–90 seconds depending on dataset size.
                 </p>
               </div>
             )}
 
-            {/* ── Tabs ── */}
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="bg-muted/40 border border-white/8 rounded-xl mb-6 p-1 gap-0.5">
-                <TabsTrigger value="overview" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-overview">
-                  <BarChart2 className="w-3.5 h-3.5" />Overview
-                </TabsTrigger>
-                <TabsTrigger value="models" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-models" disabled={!results}>
-                  <FlaskConical className="w-3.5 h-3.5" />Model Battle
-                </TabsTrigger>
-                <TabsTrigger value="results" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-results" disabled={!results}>
-                  <Brain className="w-3.5 h-3.5" />Results
-                </TabsTrigger>
-                <TabsTrigger value="explain" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-explain" disabled={!results}>
-                  <Lightbulb className="w-3.5 h-3.5" />Explain
-                </TabsTrigger>
-                <TabsTrigger value="whatif" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-whatif" disabled={!results || analysis?.problem_type === "clustering"}>
-                  <Wand2 className="w-3.5 h-3.5" />What-If
-                </TabsTrigger>
-              </TabsList>
+            {/* ── Conditional Render based on viewMode ── */}
+            {viewMode === "pipeline" && analysis ? (
+              <PipelineWalkthrough 
+                analysis={analysis} 
+                results={results} 
+                running={running} 
+                runModels={runModels} 
+                onRefresh={() => {
+                  api.getAnalysis(id).then(setAnalysis);
+                }}
+              />
+            ) : (
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="bg-muted/40 border border-white/8 rounded-xl mb-6 p-1 gap-0.5">
+                  <TabsTrigger value="overview" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-overview">
+                    <BarChart2 className="w-3.5 h-3.5" />Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="models" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-models" disabled={!results}>
+                    <FlaskConical className="w-3.5 h-3.5" />Model Battle
+                  </TabsTrigger>
+                  <TabsTrigger value="results" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-results" disabled={!results}>
+                    <Brain className="w-3.5 h-3.5" />Results
+                  </TabsTrigger>
+                  <TabsTrigger value="explain" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-explain" disabled={!results}>
+                    <Lightbulb className="w-3.5 h-3.5" />Explain
+                  </TabsTrigger>
+                  <TabsTrigger value="whatif" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-lg" id="tab-whatif" disabled={!results || analysis?.problem_type === "clustering"}>
+                    <Wand2 className="w-3.5 h-3.5" />What-If
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="overview" className="mt-0 animate-fade-in">
-                {analysis && <OverviewTab analysis={analysis} />}
-              </TabsContent>
+                <TabsContent value="overview" className="mt-0 animate-fade-in">
+                  {analysis && <OverviewTab analysis={analysis} />}
+                </TabsContent>
 
-              <TabsContent value="models" className="mt-0 animate-fade-in">
-                {results && analysis && <ModelBattleTab results={results} analysis={analysis} />}
-              </TabsContent>
+                <TabsContent value="models" className="mt-0 animate-fade-in">
+                  {results && analysis && <ModelBattleTab results={results} analysis={analysis} />}
+                </TabsContent>
 
-              <TabsContent value="results" className="mt-0 animate-fade-in">
-                {results && analysis && <ResultsTab results={results} analysis={analysis} />}
-              </TabsContent>
+                <TabsContent value="results" className="mt-0 animate-fade-in">
+                  {results && analysis && <ResultsTab results={results} analysis={analysis} />}
+                </TabsContent>
 
-              <TabsContent value="explain" className="mt-0 animate-fade-in">
-                {analysis && results && (
-                  <ExplainTab
-                    analysisId={id}
-                    domain={analysis.domain}
-                    initialExplanation={results.explanation}
-                    nextSteps={results.next_steps}
-                  />
-                )}
-              </TabsContent>
+                <TabsContent value="explain" className="mt-0 animate-fade-in">
+                  {analysis && results && (
+                    <ExplainTab
+                      analysisId={id}
+                      domain={analysis.domain}
+                      initialExplanation={results.explanation}
+                      nextSteps={results.next_steps}
+                    />
+                  )}
+                </TabsContent>
 
-              <TabsContent value="whatif" className="mt-0 animate-fade-in">
-                {analysis && results && (
-                  <WhatIfTab analysis={analysis} results={results} />
-                )}
-              </TabsContent>
-            </Tabs>
+                <TabsContent value="whatif" className="mt-0 animate-fade-in">
+                  {analysis && results && (
+                    <WhatIfTab analysis={analysis} results={results} />
+                  )}
+                </TabsContent>
+              </Tabs>
+            )}
           </div>
         </main>
       </div>

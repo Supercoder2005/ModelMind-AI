@@ -12,8 +12,8 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "ModelMind AI — Automated ML Analysis",
   description:
-    "Upload any CSV and get instant AI-powered insights. Auto EDA, multi-model battle, natural language explanations, and Jupyter export — powered by Gemini.",
-  keywords: ["machine learning", "AI", "data analysis", "AutoML", "Gemini"],
+    "Upload any CSV and get instant AI-powered insights. Auto EDA, multi-model battle, natural language explanations, and Jupyter export — powered by Advanced AI.",
+  keywords: ["machine learning", "AI", "data analysis", "AutoML", "Explainable AI"],
   openGraph: {
     title: "ModelMind AI",
     description: "Upload a CSV. Get ML superpowers.",

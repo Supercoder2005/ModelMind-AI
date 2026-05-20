@@ -22,6 +22,7 @@ export interface Analysis {
   winning_model: string | null;
   name: string | null;
   is_favorite: boolean;
+  user_goals: string | null;
   eda_result: EdaResult | null;
   profile: DataProfile | null;
   results_json: ModelResults | null;
@@ -158,7 +159,7 @@ export const api = {
   getAnalysis: (id: string): Promise<Analysis> =>
     _fetch(`${API}/analysis/${id}`),
 
-  patchAnalysis: (id: string, body: { name?: string; is_favorite?: boolean }): Promise<Analysis> =>
+  patchAnalysis: (id: string, body: { name?: string; is_favorite?: boolean; user_goals?: string }): Promise<Analysis> =>
     _fetch(`${API}/analysis/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -211,4 +212,23 @@ export const api = {
 
   // Export
   exportNotebookUrl: (id: string): string => `${API}/export/notebook/${id}`,
+
+  // 11-Step Pipeline Specifics
+  getSuggestions: (id: string): Promise<{
+    suggested_targets: { column: string; reason: string }[];
+    business_goals: string[];
+    metrics: { metric: string; reason: string }[];
+  }> => _fetch(`${API}/analysis/${id}/suggestions`),
+
+  getAttributes: (id: string): Promise<{
+    explanations: Record<string, string>;
+  }> => _fetch(`${API}/analysis/${id}/attributes`),
+
+  getConclusion: (id: string): Promise<{
+    executive_summary: string;
+    preprocessing_summary: string;
+    model_performance_summary: string;
+    business_impact: string;
+    overall_conclusion: string;
+  }> => _fetch(`${API}/analysis/${id}/conclusion`),
 };

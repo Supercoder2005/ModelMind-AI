@@ -243,7 +243,7 @@ export function ModelBattleTab({ results, analysis }: { results: ModelResults; a
           <div className="flex items-center gap-2 mb-3">
             <Zap className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold">Why {winner} Won</h3>
-            <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">Gemini Analysis</Badge>
+            <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">AI Analysis</Badge>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed mb-3">{explanation.why_winner}</p>
           {explanation.tradeoffs && (

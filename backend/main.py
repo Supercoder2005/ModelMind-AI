@@ -29,6 +29,17 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 async def lifespan(app: FastAPI):
     # Create all DB tables on startup
     db_models.Base.metadata.create_all(bind=engine)
+    
+    # Dynamically alter table for user_goals if not present
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE analyses ADD COLUMN user_goals VARCHAR"))
+            conn.commit()
+            logger.info("✅ Dynamically added user_goals column to analyses table")
+        except Exception:
+            pass
+
     logger.info("✅ Database tables ready")
     logger.info("🚀 ModelMind AI backend started — http://localhost:8000")
     yield
@@ -37,7 +48,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ModelMind AI",
-    description="Automated ML analysis platform powered by Gemini",
+    description="Automated ML analysis platform powered by Advanced AI",
     version="1.0.0",
     lifespan=lifespan,
 )

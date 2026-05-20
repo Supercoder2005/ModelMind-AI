@@ -239,7 +239,7 @@ function ClusteringResults({ results }: { results: ModelResults }) {
         <div>
           <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
             ✨ AI Cluster Personas
-            <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">Gemini Named</Badge>
+            <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">AI Named</Badge>
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {personas.map((p) => (
