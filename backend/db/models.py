@@ -41,3 +41,8 @@ class Analysis(Base):
 
     # File path on disk
     file_path = Column(String, nullable=True)
+
+    # Cached Gemini step analyses (to avoid re-calling on every page revisit)
+    suggestions_cache = Column(JSON, nullable=True)
+    attributes_cache = Column(JSON, nullable=True)
+    conclusion_cache = Column(JSON, nullable=True)

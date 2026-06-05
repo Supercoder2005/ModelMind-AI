@@ -47,7 +47,7 @@ def _to_dict(a: Analysis) -> dict:
     return {
         "id": a.id,
         "filename": a.filename,
-        "created_at": a.created_at.isoformat() if a.created_at else None,
+        "created_at": (a.created_at.isoformat() + "Z") if a.created_at else None,
         "domain": a.domain,
         "problem_type": a.problem_type,
         "shape_rows": a.shape_rows,
@@ -142,9 +142,15 @@ def get_suggestions(analysis_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Analysis not found.")
     if not record.profile:
         raise HTTPException(status_code=422, detail="No profile data found. Please run EDA first.")
-    
+
+    # Return cached result if available
+    if record.suggestions_cache:
+        return record.suggestions_cache
+
     try:
         suggestions = gemini.get_suggestions(record.profile, record.domain)
+        record.suggestions_cache = suggestions
+        db.commit()
         return suggestions
     except Exception as e:
         logger.error("Failed to generate suggestions: %s", e)
@@ -159,6 +165,10 @@ def get_attributes(analysis_id: str, db: Session = Depends(get_db)):
     if not record.profile or "column_details" not in record.profile:
         raise HTTPException(status_code=422, detail="No profile data found.")
 
+    # Return cached result if available
+    if record.attributes_cache:
+        return record.attributes_cache
+
     cols = []
     for col, detail in record.profile["column_details"].items():
         cols.append({
@@ -170,6 +180,8 @@ def get_attributes(analysis_id: str, db: Session = Depends(get_db)):
 
     try:
         explanations = gemini.explain_attributes(cols, record.domain)
+        record.attributes_cache = explanations
+        db.commit()
         return explanations
     except Exception as e:
         logger.error("Failed to explain attributes: %s", e)
@@ -183,9 +195,15 @@ def get_conclusion(analysis_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Analysis not found.")
     if not record.results_json:
         raise HTTPException(status_code=422, detail="No training results found. Please run the model competition first.")
-    
+
+    # Return cached result if available
+    if record.conclusion_cache:
+        return record.conclusion_cache
+
     try:
         conclusion = gemini.generate_conclusion(record.results_json, record.domain)
+        record.conclusion_cache = conclusion
+        db.commit()
         return conclusion
     except Exception as e:
         logger.error("Failed to generate conclusion: %s", e)

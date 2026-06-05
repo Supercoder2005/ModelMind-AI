@@ -231,4 +231,21 @@ export const api = {
     business_impact: string;
     overall_conclusion: string;
   }> => _fetch(`${API}/analysis/${id}/conclusion`),
+
+  // Full dataset with cell-level missing/duplicate metadata
+  getDataset: (id: string, limit = 1000): Promise<{
+    analysis_id: string;
+    filename: string;
+    target_col: string | null;
+    columns: string[];
+    column_meta: Record<string, { dtype: string; missing_count: number; is_target: boolean }>;
+    total_rows: number;
+    rows: {
+      idx: number;
+      data: Record<string, string | number | null>;
+      is_duplicate: boolean;
+      missing_cells: string[];
+    }[];
+  }> => _fetch(`${API}/analysis/${id}/data?limit=${limit}`),
 };
+

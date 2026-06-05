@@ -44,8 +44,9 @@ export function ModelBattleTab({ results, analysis }: { results: ModelResults; a
       return subjects.map((s) => {
         const entry: Record<string, string | number> = { subject: s };
         models.forEach((m) => {
-          const key = s.toLowerCase();
-          entry[m.name] = +(((m as Record<string, unknown>)[key] as number) * 100 ?? 0).toFixed(1);
+          const key = s.toLowerCase() as keyof typeof m;
+          const val = m[key] as number | undefined;
+          entry[m.name] = +((val ?? 0) * 100).toFixed(1);
         });
         return entry;
       });

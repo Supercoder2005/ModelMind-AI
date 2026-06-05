@@ -10,8 +10,10 @@ import {
   CheckCircle2, AlertTriangle, Layers, FileText, Cpu, Info,
   TrendingUp, Award, Activity, Heart, ShieldCheck, Gauge, HelpCircle,
   FolderSync, GitMerge, KanbanSquare, CheckCircle, BarChart4, ClipboardList,
-  RefreshCw, Play, Trophy
+  RefreshCw, Play, Trophy, TableIcon, BarChart2
 } from "lucide-react";
+import { DatasetModal } from "@/components/pipeline/DatasetModal";
+import { EDACharts } from "@/components/eda/EDACharts";
 
 interface PipelineWalkthroughProps {
   analysis: Analysis;
@@ -69,6 +71,8 @@ export function PipelineWalkthrough({
   const [loadingAttributes, setLoadingAttributes] = useState(false);
   const [conclusion, setConclusion] = useState<any>(null);
   const [loadingConclusion, setLoadingConclusion] = useState(false);
+  const [showDatasetModal, setShowDatasetModal] = useState(false);
+  const [edaTab, setEdaTab] = useState<"stats" | "charts">("stats");
 
   // Fetch Step 2 Suggestions
   useEffect(() => {
@@ -390,9 +394,20 @@ export function PipelineWalkthrough({
                   )}
                 </div>
 
-                {/* Simulated Terminal Window for Data Preview */}
+                {/* Data Terminal Feed */}
                 <div className="space-y-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Data Terminal Feed</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Data Terminal Feed</h4>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10 h-7 px-3"
+                      onClick={() => setShowDatasetModal(true)}
+                    >
+                      <TableIcon className="w-3 h-3" />
+                      View Full Dataset
+                    </Button>
+                  </div>
                   <div className="rounded-2xl border border-white/5 overflow-hidden">
                     <div className="bg-black/50 px-4 py-2 flex items-center justify-between border-b border-white/5">
                       <div className="flex items-center gap-1.5">
@@ -400,14 +415,14 @@ export function PipelineWalkthrough({
                         <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
                         <span className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
                       </div>
-                      <span className="text-[9px] text-muted-foreground font-mono">feed: df.head(3)</span>
+                      <span className="text-[9px] text-muted-foreground font-mono">feed: df.head(3) · click &quot;View Full Dataset&quot; for complete view</span>
                     </div>
                     <div className="p-3 bg-black/70 overflow-x-auto">
                       <table className="w-full text-[10px] text-left text-muted-foreground font-mono">
                         <thead>
                           <tr className="border-b border-white/10 pb-1 text-white">
                             {analysis.profile?.columns.slice(0, 5).map((c, i) => (
-                              <th key={i} className="py-2 pr-3 font-semibold">{c}</th>
+                              <th key={i} className={`py-2 pr-3 font-semibold ${c === analysis.target_col ? "text-primary" : ""}`}>{c}</th>
                             ))}
                           </tr>
                         </thead>
@@ -415,7 +430,9 @@ export function PipelineWalkthrough({
                           {analysis.profile?.sample_rows.slice(0, 3).map((row, i) => (
                             <tr key={i} className="border-b border-white/5 last:border-0 hover:bg-white/5 transition">
                               {analysis.profile?.columns.slice(0, 5).map((col, j) => (
-                                <td key={j} className="py-2 pr-3 max-w-[120px] truncate">{row[col] ?? "null"}</td>
+                                <td key={j} className={`py-2 pr-3 max-w-[120px] truncate ${row[col] === null || row[col] === undefined ? "text-amber-400 italic" : col === analysis.target_col ? "text-primary font-semibold" : ""}`}>
+                                  {row[col] === null || row[col] === undefined ? "null" : String(row[col])}
+                                </td>
                               ))}
                             </tr>
                           ))}
@@ -427,104 +444,144 @@ export function PipelineWalkthrough({
               </div>
             )}
 
+            {/* Dataset Modal */}
+            {showDatasetModal && (
+              <DatasetModal
+                analysisId={analysis.id}
+                filename={analysis.filename}
+                targetCol={analysis.target_col ?? null}
+                onClose={() => setShowDatasetModal(false)}
+              />
+            )}
+
             {/* ── STEP 4: EDA Profile ── */}
             {currentStep === 4 && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-2xl border border-white/5 bg-black/20 flex flex-col justify-between">
-                    <div>
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Missing Checks</span>
-                      <p className="text-2xl font-black text-white mt-1">
-                        {analysis.profile?.columns.reduce((acc, c) => acc + (analysis.profile?.column_details?.[c]?.missing_count ?? 0), 0).toLocaleString()}
-                      </p>
-                    </div>
-                    <Badge variant="ghost" className="text-[9px] text-muted-foreground p-0 mt-3 hover:bg-transparent">null cells in matrix</Badge>
-                  </div>
-
-                  <div className="p-4 rounded-2xl border border-white/5 bg-black/20 flex flex-col justify-between">
-                    <div>
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Duplicate Rows</span>
-                      <p className="text-2xl font-black text-white mt-1">
-                        {analysis.profile?.duplicate_rows ?? 0}
-                      </p>
-                    </div>
-                    <Badge variant="ghost" className="text-[9px] text-muted-foreground p-0 mt-3 hover:bg-transparent">identical records</Badge>
-                  </div>
-
-                  <div className="p-4 rounded-2xl border border-white/5 bg-black/20 flex flex-col justify-between">
-                    <div>
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Outliers Flagged</span>
-                      <p className="text-2xl font-black text-white mt-1">
-                        {analysis.profile?.columns.reduce((acc, c) => {
-                          const det: any = analysis.profile?.column_details?.[c];
-                          return acc + (det?.outliers_count ?? 0);
-                        }, 0).toLocaleString()}
-                      </p>
-                    </div>
-                    <Badge variant="ghost" className="text-[9px] text-muted-foreground p-0 mt-3 hover:bg-transparent">IQR violations detected</Badge>
-                  </div>
+              <div className="space-y-5">
+                {/* Tab Switcher */}
+                <div className="flex bg-muted/20 border border-white/5 rounded-xl p-0.5 w-fit">
+                  <button
+                    onClick={() => setEdaTab("stats")}
+                    className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                      edaTab === "stats" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-white"
+                    }`}
+                  >
+                    <Activity className="w-3 h-3" />Statistics
+                  </button>
+                  <button
+                    onClick={() => setEdaTab("charts")}
+                    className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                      edaTab === "charts" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-white"
+                    }`}
+                  >
+                    <BarChart2 className="w-3 h-3" />Distribution Charts
+                  </button>
                 </div>
 
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Target & Categorical Balance Check</h4>
-                  <div className="space-y-3">
-                    {analysis.profile?.columns.map((c) => {
-                      const detail: any = analysis.profile?.column_details?.[c];
-                      if (!detail || !detail.class_distribution) return null;
-                      const isImbalanced = detail.is_imbalanced;
-
-                      return (
-                        <div key={c} className="p-4 bg-muted/10 border border-white/5 rounded-2xl space-y-3">
-                          <div className="flex justify-between items-center gap-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold font-mono text-white">{c}</span>
-                              {c === analysis.target_col && <Badge className="text-[8px] bg-primary/20 text-primary border-none">TARGET</Badge>}
-                            </div>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              isImbalanced 
-                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" 
-                                : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            }`}>
-                              {isImbalanced ? "Highly Imbalanced" : "Balanced Distribution"}
-                            </span>
-                          </div>
-                          
-                          {/* Visual Segmented Progress Bar */}
-                          <div className="h-2 w-full bg-black/40 rounded-full flex overflow-hidden">
-                            {Object.entries(detail.class_distribution).map(([cls, pct]: any, i) => {
-                              const COLORS = ["bg-primary", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500"];
-                              const col = COLORS[i % COLORS.length];
-                              return (
-                                <div 
-                                  key={cls} 
-                                  className={`${col} h-full`} 
-                                  style={{ width: `${pct}%` }} 
-                                  title={`${cls}: ${pct}%`} 
-                                />
-                              );
-                            })}
-                          </div>
-
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                            {Object.entries(detail.class_distribution).map(([cls, pct]: any, i) => {
-                              const DOT_COLORS = ["bg-primary", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500"];
-                              const dot = DOT_COLORS[i % DOT_COLORS.length];
-                              return (
-                                <div key={cls} className="p-2 bg-black/20 rounded-xl flex items-center justify-between text-[10px] font-mono">
-                                  <div className="flex items-center gap-1.5 truncate pr-2">
-                                    <span className={`w-1.5 h-1.5 rounded-full ${dot} shrink-0`} />
-                                    <span className="text-muted-foreground truncate">{cls}</span>
-                                  </div>
-                                  <span className="font-bold text-white">{pct}%</span>
-                                </div>
-                              );
-                            })}
-                          </div>
+                {edaTab === "stats" && (
+                  <div className="space-y-6 animate-fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="p-4 rounded-2xl border border-white/5 bg-black/20 flex flex-col justify-between">
+                        <div>
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Missing Checks</span>
+                          <p className="text-2xl font-black text-white mt-1">
+                            {analysis.profile?.columns.reduce((acc, c) => acc + (analysis.profile?.column_details?.[c]?.missing_count ?? 0), 0).toLocaleString()}
+                          </p>
                         </div>
-                      );
-                    })}
+                        <Badge variant="ghost" className="text-[9px] text-muted-foreground p-0 mt-3 hover:bg-transparent">null cells in matrix</Badge>
+                      </div>
+
+                      <div className="p-4 rounded-2xl border border-white/5 bg-black/20 flex flex-col justify-between">
+                        <div>
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Duplicate Rows</span>
+                          <p className="text-2xl font-black text-white mt-1">
+                            {analysis.profile?.duplicate_rows ?? 0}
+                          </p>
+                        </div>
+                        <Badge variant="ghost" className="text-[9px] text-muted-foreground p-0 mt-3 hover:bg-transparent">identical records</Badge>
+                      </div>
+
+                      <div className="p-4 rounded-2xl border border-white/5 bg-black/20 flex flex-col justify-between">
+                        <div>
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Outliers Flagged</span>
+                          <p className="text-2xl font-black text-white mt-1">
+                            {analysis.profile?.columns.reduce((acc, c) => {
+                              const det: any = analysis.profile?.column_details?.[c];
+                              return acc + (det?.outliers_count ?? 0);
+                            }, 0).toLocaleString()}
+                          </p>
+                        </div>
+                        <Badge variant="ghost" className="text-[9px] text-muted-foreground p-0 mt-3 hover:bg-transparent">IQR violations detected</Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Target & Categorical Balance Check</h4>
+                      <div className="space-y-3">
+                        {analysis.profile?.columns.map((c) => {
+                          const detail: any = analysis.profile?.column_details?.[c];
+                          if (!detail || !detail.class_distribution) return null;
+                          const isImbalanced = detail.is_imbalanced;
+
+                          return (
+                            <div key={c} className="p-4 bg-muted/10 border border-white/5 rounded-2xl space-y-3">
+                              <div className="flex justify-between items-center gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold font-mono text-white">{c}</span>
+                                  {c === analysis.target_col && <Badge className="text-[8px] bg-primary/20 text-primary border-none">TARGET</Badge>}
+                                </div>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  isImbalanced
+                                    ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                    : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                                }`}>
+                                  {isImbalanced ? "Highly Imbalanced" : "Balanced Distribution"}
+                                </span>
+                              </div>
+
+                              {/* Visual Segmented Progress Bar */}
+                              <div className="h-2 w-full bg-black/40 rounded-full flex overflow-hidden">
+                                {Object.entries(detail.class_distribution).map(([cls, pct]: any, i) => {
+                                  const COLORS = ["bg-primary", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500"];
+                                  const col = COLORS[i % COLORS.length];
+                                  return (
+                                    <div
+                                      key={cls}
+                                      className={`${col} h-full`}
+                                      style={{ width: `${pct}%` }}
+                                      title={`${cls}: ${pct}%`}
+                                    />
+                                  );
+                                })}
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                                {Object.entries(detail.class_distribution).map(([cls, pct]: any, i) => {
+                                  const DOT_COLORS = ["bg-primary", "bg-violet-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500"];
+                                  const dot = DOT_COLORS[i % DOT_COLORS.length];
+                                  return (
+                                    <div key={cls} className="p-2 bg-black/20 rounded-xl flex items-center justify-between text-[10px] font-mono">
+                                      <div className="flex items-center gap-1.5 truncate pr-2">
+                                        <span className={`w-1.5 h-1.5 rounded-full ${dot} shrink-0`} />
+                                        <span className="text-muted-foreground truncate">{cls}</span>
+                                      </div>
+                                      <span className="font-bold text-white">{pct}%</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {edaTab === "charts" && (
+                  <div className="animate-fade-in">
+                    <EDACharts analysis={analysis} />
+                  </div>
+                )}
               </div>
             )}
 

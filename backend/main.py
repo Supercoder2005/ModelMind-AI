@@ -16,7 +16,7 @@ load_dotenv()
 
 from db.database import engine
 from db import models as db_models
-from routers import upload, analysis, models, explain, whatif, export
+from routers import upload, analysis, models, explain, whatif, export, data
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -30,15 +30,22 @@ async def lifespan(app: FastAPI):
     # Create all DB tables on startup
     db_models.Base.metadata.create_all(bind=engine)
     
-    # Dynamically alter table for user_goals if not present
+    # Dynamically alter table for new columns if not present
     from sqlalchemy import text
+    new_columns = [
+        ("user_goals", "VARCHAR"),
+        ("suggestions_cache", "JSON"),
+        ("attributes_cache", "JSON"),
+        ("conclusion_cache", "JSON"),
+    ]
     with engine.connect() as conn:
-        try:
-            conn.execute(text("ALTER TABLE analyses ADD COLUMN user_goals VARCHAR"))
-            conn.commit()
-            logger.info("✅ Dynamically added user_goals column to analyses table")
-        except Exception:
-            pass
+        for col_name, col_type in new_columns:
+            try:
+                conn.execute(text(f"ALTER TABLE analyses ADD COLUMN {col_name} {col_type}"))
+                conn.commit()
+                logger.info(f"✅ Dynamically added '{col_name}' column to analyses table")
+            except Exception:
+                pass  # Column already exists
 
     logger.info("✅ Database tables ready")
     logger.info("🚀 ModelMind AI backend started — http://localhost:8000")
@@ -80,6 +87,7 @@ app.include_router(models.router, prefix=PREFIX, tags=["Models"])
 app.include_router(explain.router, prefix=PREFIX, tags=["Explain"])
 app.include_router(whatif.router, prefix=PREFIX, tags=["What-If"])
 app.include_router(export.router, prefix=PREFIX, tags=["Export"])
+app.include_router(data.router, prefix=PREFIX, tags=["Data"])
 
 
 @app.get("/", tags=["Health"])

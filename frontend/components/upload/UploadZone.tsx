@@ -232,7 +232,7 @@ export function UploadZone() {
       {/* Domain selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-muted-foreground whitespace-nowrap">Dataset domain:</span>
-        <Select value={domain} onValueChange={setDomain} disabled={isActive}>
+        <Select value={domain} onValueChange={(v) => setDomain(v || "auto")} disabled={isActive}>
           <SelectTrigger className="w-44 h-8 text-xs bg-muted/40 border-white/10">
             <SelectValue />
           </SelectTrigger>

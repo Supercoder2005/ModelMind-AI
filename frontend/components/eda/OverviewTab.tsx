@@ -3,7 +3,7 @@
 import { type Analysis } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, Database, AlertTriangle, Copy2 } from "lucide-react";
+import { Sparkles, Database, AlertTriangle } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
@@ -87,7 +87,7 @@ export function OverviewTab({ analysis }: { analysis: Analysis }) {
             {Object.entries(profile.column_details)
               .slice(0, 9)
               .map(([col, detail], i) => (
-                <ColumnChart key={col} col={col} detail={detail} colorIndex={i % COLORS.length} />
+                <ColumnChart key={col} col={col} detail={detail as any} colorIndex={i % COLORS.length} />
               ))}
           </div>
         </div>

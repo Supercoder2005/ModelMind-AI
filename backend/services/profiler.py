@@ -39,6 +39,7 @@ def profile(df: pd.DataFrame) -> dict[str, Any]:
             info["min"] = _safe_float(desc.get("min"))
             info["max"] = _safe_float(desc.get("max"))
             info["q25"] = _safe_float(desc.get("25%"))
+            info["median"] = _safe_float(desc.get("50%"))
             info["q75"] = _safe_float(desc.get("75%"))
             info["skewness"] = _safe_float(df[col].skew())
 

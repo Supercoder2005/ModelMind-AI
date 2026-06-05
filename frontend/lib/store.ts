@@ -25,16 +25,16 @@ export const useStore = create<ModelMindStore>()(
       activeAnalysisId: null,
       analysisHistory: [],
 
-      setExpertiseLevel: (level) => set({ expertiseLevel: level }),
-      setActiveAnalysis: (id) => set({ activeAnalysisId: id }),
-      setHistory: (history) => set({ analysisHistory: history }),
+      setExpertiseLevel: (level: ExpertiseLevel) => set({ expertiseLevel: level }),
+      setActiveAnalysis: (id: string | null) => set({ activeAnalysisId: id }),
+      setHistory: (history: Analysis[]) => set({ analysisHistory: history }),
 
-      upsertHistory: (analysis) =>
-        set((state) => {
-          const exists = state.analysisHistory.find((a) => a.id === analysis.id);
+      upsertHistory: (analysis: Analysis) =>
+        set((state: ModelMindStore) => {
+          const exists = state.analysisHistory.find((a: Analysis) => a.id === analysis.id);
           if (exists) {
             return {
-              analysisHistory: state.analysisHistory.map((a) =>
+              analysisHistory: state.analysisHistory.map((a: Analysis) =>
                 a.id === analysis.id ? analysis : a
               ),
             };
@@ -42,17 +42,17 @@ export const useStore = create<ModelMindStore>()(
           return { analysisHistory: [analysis, ...state.analysisHistory].slice(0, 20) };
         }),
 
-      removeFromHistory: (id) =>
-        set((state) => ({
-          analysisHistory: state.analysisHistory.filter((a) => a.id !== id),
+      removeFromHistory: (id: string) =>
+        set((state: ModelMindStore) => ({
+          analysisHistory: state.analysisHistory.filter((a: Analysis) => a.id !== id),
           activeAnalysisId: state.activeAnalysisId === id ? null : state.activeAnalysisId,
         })),
     }),
     {
       name: "modelmind-store",
-      partialState: (state) => ({
+      partialize: (state: ModelMindStore) => ({
         expertiseLevel: state.expertiseLevel,
       }),
-    } as Parameters<typeof persist>[1]
+    }
   )
 );
