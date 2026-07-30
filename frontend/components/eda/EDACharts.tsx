@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Analysis } from "@/lib/api";
 
 interface EDAChartsProps {
@@ -245,88 +245,134 @@ function CorrelationMatrix({ analysis }: { analysis: Analysis }) {
 }
 
 // ── Scatter Plot between 2 numeric columns ──
-function ScatterPlot({ analysis }: { analysis: Analysis }) {
+// Palette of colors for target classes
+const CLASS_COLORS = [
+  "rgba(139,92,246,0.85)",  // violet
+  "rgba(6,182,212,0.85)",   // cyan
+  "rgba(52,211,153,0.85)",  // emerald
+  "rgba(251,191,36,0.85)",  // amber
+  "rgba(239,68,68,0.85)",   // red
+  "rgba(236,72,153,0.85)",  // pink
+  "rgba(99,102,241,0.85)",  // indigo
+  "rgba(20,184,166,0.85)",  // teal
+];
+
+function InteractiveScatterPlot({ analysis, numericCols }: { analysis: Analysis; numericCols: string[] }) {
   const profile = analysis.profile;
-  if (!profile) return null;
+  if (!profile || numericCols.length < 2) return null;
 
-  const numericCols = profile.columns.filter((c: string) => {
-    const d = profile.column_details?.[c];
-    return d && d.mean !== undefined;
-  });
+  const [xCol, setXCol] = useState(numericCols[0]);
+  const [yCol, setYCol] = useState(numericCols[1]);
 
-  if (numericCols.length < 2) {
-    return (
-      <div className="p-6 rounded-2xl bg-black/20 border border-white/5 text-center">
-        <p className="text-xs text-muted-foreground">Need at least 2 numeric columns for scatter plot.</p>
-      </div>
-    );
-  }
-
-  const xCol = numericCols[0];
-  const yCol = numericCols[1];
+  const targetCol = analysis.target_col;
   const sampleRows: Record<string, any>[] = profile.sample_rows ?? [];
 
-  const points = sampleRows
-    .map((r) => ({ x: r[xCol], y: r[yCol] }))
-    .filter((p) => p.x !== null && p.y !== null && !isNaN(Number(p.x)) && !isNaN(Number(p.y)))
-    .map((p) => ({ x: Number(p.x), y: Number(p.y) }));
+  // Build points with target class label for coloring
+  const points = useMemo(() => {
+    return sampleRows
+      .map((r) => ({
+        x: r[xCol], y: r[yCol],
+        targetVal: targetCol ? r[targetCol] : null,
+      }))
+      .filter((p) => p.x !== null && p.y !== null && !isNaN(Number(p.x)) && !isNaN(Number(p.y)))
+      .map((p) => ({ x: Number(p.x), y: Number(p.y), targetVal: String(p.targetVal ?? "") }));
+  }, [sampleRows, xCol, yCol, targetCol]);
+
+  // Build unique class → color mapping
+  const targetClasses = useMemo(() => {
+    const classes = [...new Set(points.map((p) => p.targetVal))].filter(Boolean);
+    const map: Record<string, string> = {};
+    classes.forEach((cls, i) => { map[cls] = CLASS_COLORS[i % CLASS_COLORS.length]; });
+    return map;
+  }, [points]);
+
+  const hasTargetColors = targetCol && Object.keys(targetClasses).length > 0;
 
   if (points.length < 2) {
     return (
       <div className="p-6 rounded-2xl bg-black/20 border border-white/5 text-center">
-        <p className="text-xs text-muted-foreground">Not enough numeric sample data for scatter plot.</p>
+        <p className="text-xs text-muted-foreground">Not enough sample data to plot.</p>
       </div>
     );
   }
 
-  const W = 400, H = 200, PAD = 30;
+  const W = 480, H = 240, PAD = 36;
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
   const xMin = Math.min(...xs), xMax = Math.max(...xs) || xMin + 1;
   const yMin = Math.min(...ys), yMax = Math.max(...ys) || yMin + 1;
+  const xRange = xMax - xMin || 1;
+  const yRange = yMax - yMin || 1;
 
-  const sx = (v: number) => PAD + ((v - xMin) / (xMax - xMin)) * (W - PAD * 2);
-  const sy = (v: number) => H - PAD - ((v - yMin) / (yMax - yMin)) * (H - PAD * 2);
+  const sx = (v: number) => PAD + ((v - xMin) / xRange) * (W - PAD * 2);
+  const sy = (v: number) => H - PAD - ((v - yMin) / yRange) * (H - PAD * 2);
 
-  const isTargetX = xCol === analysis.target_col;
-  const isTargetY = yCol === analysis.target_col;
+  const selectCls = "bg-black/40 border border-white/15 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary/40 cursor-pointer";
 
   return (
-    <div className="p-4 rounded-2xl bg-black/20 border border-white/5 space-y-2">
-      <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-        Scatter: <span className={isTargetX ? "text-primary" : "text-cyan-400"}>{xCol}</span>
-        {" "} × {" "}
-        <span className={isTargetY ? "text-primary" : "text-violet-400"}>{yCol}</span>
-      </h4>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-xl" style={{ height: 200, background: "rgba(0,0,0,0.2)" }}>
+    <div className="p-4 rounded-2xl bg-black/20 border border-white/5 space-y-3">
+      {/* Axis selectors */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground font-semibold">X Axis:</span>
+          <select value={xCol} onChange={(e) => setXCol(e.target.value)} className={selectCls}>
+            {numericCols.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground font-semibold">Y Axis:</span>
+          <select value={yCol} onChange={(e) => setYCol(e.target.value)} className={selectCls}>
+            {numericCols.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        {hasTargetColors && (
+          <span className="text-[10px] text-muted-foreground ml-auto">Colored by: <span className="text-primary font-semibold">{targetCol}</span></span>
+        )}
+      </div>
+
+      {/* SVG scatter */}
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full rounded-xl" style={{ height: 240, background: "rgba(0,0,0,0.25)" }}>
         {/* Grid lines */}
         {[0.25, 0.5, 0.75].map((t) => (
           <g key={t}>
-            <line x1={PAD} y1={PAD + t * (H - PAD * 2)} x2={W - PAD} y2={PAD + t * (H - PAD * 2)} stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
-            <line x1={PAD + t * (W - PAD * 2)} y1={PAD} x2={PAD + t * (W - PAD * 2)} y2={H - PAD} stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
+            <line x1={PAD} y1={PAD + t * (H - PAD * 2)} x2={W - PAD} y2={PAD + t * (H - PAD * 2)} stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
+            <line x1={PAD + t * (W - PAD * 2)} y1={PAD} x2={PAD + t * (W - PAD * 2)} y2={H - PAD} stroke="rgba(255,255,255,0.04)" strokeWidth={1} />
           </g>
         ))}
         {/* Axes */}
         <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke="rgba(255,255,255,0.15)" strokeWidth={1} />
         <line x1={PAD} y1={PAD} x2={PAD} y2={H - PAD} stroke="rgba(255,255,255,0.15)" strokeWidth={1} />
+        {/* Axis tick labels */}
+        <text x={PAD} y={H - PAD + 12} textAnchor="middle" fill="rgba(255,255,255,0.25)" fontSize={7}>{xMin.toFixed(1)}</text>
+        <text x={W - PAD} y={H - PAD + 12} textAnchor="middle" fill="rgba(255,255,255,0.25)" fontSize={7}>{xMax.toFixed(1)}</text>
+        <text x={PAD - 6} y={H - PAD} textAnchor="end" fill="rgba(255,255,255,0.25)" fontSize={7}>{yMin.toFixed(1)}</text>
+        <text x={PAD - 6} y={PAD + 4} textAnchor="end" fill="rgba(255,255,255,0.25)" fontSize={7}>{yMax.toFixed(1)}</text>
+        {/* Axis name labels */}
+        <text x={W / 2} y={H - 4} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={8.5}>{xCol}</text>
+        <text x={10} y={H / 2} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={8.5} transform={`rotate(-90, 10, ${H / 2})`}>{yCol}</text>
         {/* Data points */}
-        {points.map((p, i) => (
-          <circle
-            key={i}
-            cx={sx(p.x)}
-            cy={sy(p.y)}
-            r={3.5}
-            fill="rgba(139,92,246,0.5)"
-            stroke="rgba(139,92,246,0.8)"
-            strokeWidth={0.5}
-          />
-        ))}
-        {/* Axis labels */}
-        <text x={W / 2} y={H - 4} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={8}>{xCol}</text>
-        <text x={8} y={H / 2} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={8} transform={`rotate(-90, 8, ${H / 2})`}>{yCol}</text>
-        <text x={PAD} y={H - 4} textAnchor="start" fill="rgba(255,255,255,0.2)" fontSize={7}>{xMin.toFixed(1)}</text>
-        <text x={W - PAD} y={H - 4} textAnchor="end" fill="rgba(255,255,255,0.2)" fontSize={7}>{xMax.toFixed(1)}</text>
+        {points.map((p, i) => {
+          const fill = hasTargetColors ? (targetClasses[p.targetVal] ?? "rgba(255,255,255,0.3)") : "rgba(139,92,246,0.65)";
+          const stroke = fill.replace(/0\.\d+\)$/, "1)");
+          return (
+            <circle key={i} cx={sx(p.x)} cy={sy(p.y)} r={4} fill={fill} stroke={stroke} strokeWidth={0.5} opacity={0.85}>
+              <title>{xCol}: {p.x.toFixed(3)}, {yCol}: {p.y.toFixed(3)}{targetCol ? `, ${targetCol}: ${p.targetVal}` : ""}</title>
+            </circle>
+          );
+        })}
       </svg>
+
+      {/* Legend for target classes */}
+      {hasTargetColors && (
+        <div className="flex flex-wrap gap-3 pt-1">
+          {Object.entries(targetClasses).map(([cls, color]) => (
+            <div key={cls} className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+              <span className="text-[10px] text-white/70">{cls}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <p className="text-[9px] text-muted-foreground">{points.length} sample points plotted</p>
     </div>
   );
@@ -403,10 +449,10 @@ export function EDACharts({ analysis }: EDAChartsProps) {
           <div className="flex items-center gap-2">
             <div className="w-1 h-4 rounded-full bg-primary" />
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Scatter Plot — Feature Relationship
+              Scatter Plot — Select X &amp; Y Axes
             </h4>
           </div>
-          <ScatterPlot analysis={analysis} />
+          <InteractiveScatterPlot analysis={analysis} numericCols={numericCols} />
         </div>
       )}
 

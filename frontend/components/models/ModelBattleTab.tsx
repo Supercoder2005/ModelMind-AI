@@ -89,8 +89,8 @@ export function ModelBattleTab({ results, analysis }: { results: ModelResults; a
       {/* Comparison Table */}
       <div className="glass rounded-2xl border border-white/8 overflow-hidden animate-fade-in">
         <div className="px-5 py-4 border-b border-white/8">
-          <h2 className="text-sm font-semibold">Model Comparison</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">All models trained on 80/20 split in parallel</p>
+          <h2 className="text-sm font-semibold text-white">Model Comparison</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">All models trained on 70/15/15 split in parallel</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -139,39 +139,39 @@ export function ModelBattleTab({ results, analysis }: { results: ModelResults; a
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         {isWinner && <Trophy className="w-3.5 h-3.5 text-yellow-400" />}
-                        <span className={isWinner ? "font-semibold text-primary" : ""}>{m.name}</span>
+                        <span className={isWinner ? "font-semibold text-primary" : "text-white/90"}>{m.name}</span>
                         {isWinner && <Badge className="text-[10px] bg-yellow-500/20 text-yellow-400 border-yellow-500/30 px-1.5 py-0">Winner</Badge>}
                       </div>
                     </td>
                     {pt === "classification" && (
                       <>
-                        <td className="text-right px-4 py-3 tabular-nums">{pct(m.accuracy)}</td>
-                        <td className="text-right px-4 py-3 tabular-nums font-medium">{pct(m.f1)}</td>
-                        <td className="text-right px-4 py-3 tabular-nums">{pct(m.precision)}</td>
-                        <td className="text-right px-4 py-3 tabular-nums">{pct(m.recall)}</td>
-                        <td className="text-right px-4 py-3 tabular-nums">{m.auc_roc != null ? m.auc_roc.toFixed(3) : "–"}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{pct(m.accuracy)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums font-semibold text-white">{pct(m.f1)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{pct(m.precision)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{pct(m.recall)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{m.auc_roc != null ? m.auc_roc.toFixed(3) : "–"}</td>
                       </>
                     )}
                     {pt === "regression" && (
                       <>
-                        <td className="text-right px-4 py-3 tabular-nums">{m.rmse?.toFixed(4)}</td>
-                        <td className="text-right px-4 py-3 tabular-nums">{m.mae?.toFixed(4)}</td>
-                        <td className="text-right px-4 py-3 tabular-nums">{m.r2?.toFixed(4)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{m.rmse?.toFixed(4)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{m.mae?.toFixed(4)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums font-semibold text-white">{m.r2?.toFixed(4)}</td>
                       </>
                     )}
                     {pt === "clustering" && (
                       <>
-                        <td className="text-right px-4 py-3 tabular-nums">{m.silhouette?.toFixed(4)}</td>
-                        <td className="text-right px-4 py-3 tabular-nums">{m.davies_bouldin?.toFixed(4) ?? "–"}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{m.silhouette?.toFixed(4)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{m.davies_bouldin?.toFixed(4) ?? "–"}</td>
                       </>
                     )}
                     {pt === "timeseries" && (
                       <>
-                        <td className="text-right px-4 py-3 tabular-nums">{m.rmse?.toFixed(4)}</td>
-                        <td className="text-right px-4 py-3 tabular-nums">{m.mae?.toFixed(4)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{m.rmse?.toFixed(4)}</td>
+                        <td className="text-right px-4 py-3 tabular-nums text-white/80">{m.mae?.toFixed(4)}</td>
                       </>
                     )}
-                    <td className="text-right px-4 py-3 tabular-nums text-muted-foreground">{m.training_time_s?.toFixed(2)}s</td>
+                    <td className="text-right px-4 py-3 tabular-nums text-white/60">{m.training_time_s?.toFixed(2)}s</td>
                   </tr>
                 );
               })}
@@ -224,8 +224,8 @@ export function ModelBattleTab({ results, analysis }: { results: ModelResults; a
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={timeData} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid horizontal={false} stroke="oklch(1 0 0 / 5%)" />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} unit="s" />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={80} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: "rgba(255,255,255,0.5)" }} tickLine={false} axisLine={false} unit="s" />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "rgba(255,255,255,0.7)" }} tickLine={false} axisLine={false} width={90} />
                 <Tooltip contentStyle={TOOLTIP_STYLE} />
                 <Bar dataKey="time" radius={[0, 4, 4, 0]}>
                   {timeData.map((entry, i) => (
@@ -246,11 +246,11 @@ export function ModelBattleTab({ results, analysis }: { results: ModelResults; a
             <h3 className="text-sm font-semibold">Why {winner} Won</h3>
             <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">AI Analysis</Badge>
           </div>
-          <p className="text-sm text-muted-foreground leading-relaxed mb-3">{explanation.why_winner}</p>
+          <p className="text-sm text-white/80 leading-relaxed mb-3">{explanation.why_winner}</p>
           {explanation.tradeoffs && (
-            <div className="p-3 rounded-lg bg-muted/30 border border-white/5">
-              <p className="text-xs font-medium text-muted-foreground mb-1">When to use the runner-up instead:</p>
-              <p className="text-xs text-muted-foreground">{explanation.tradeoffs}</p>
+            <div className="p-3 rounded-lg bg-muted/30 border border-white/8">
+              <p className="text-xs font-semibold text-white/70 mb-1">When to use the runner-up instead:</p>
+              <p className="text-xs text-white/60 leading-relaxed">{explanation.tradeoffs}</p>
             </div>
           )}
         </div>

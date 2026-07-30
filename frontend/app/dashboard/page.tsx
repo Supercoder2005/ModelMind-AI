@@ -196,7 +196,7 @@ export default function DashboardPage() {
                         <div className="flex justify-between items-center text-[10px] text-muted-foreground pt-2 border-t border-white/5">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {item.created_at ? formatDistanceToNow(new Date(item.created_at)) : "–"}
+                            {item.created_at ? formatDistanceToNow(item.created_at) : "–"}
                           </span>
                           <span>
                             {item.shape_rows?.toLocaleString() ?? 0} rows

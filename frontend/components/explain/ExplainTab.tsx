@@ -132,7 +132,7 @@ export function ExplainTab({
               </Badge>
               {cached && <Badge variant="outline" className="text-[10px] border-white/10 text-muted-foreground bg-white/5">cached</Badge>}
             </h2>
-            <p className="text-xs text-muted-foreground">Self-explaining narratives calibrated for your preferred depth.</p>
+            <p className="text-xs text-white/70">Self-explaining narratives calibrated for your preferred depth.</p>
           </div>
         </div>
         <Button
@@ -179,7 +179,7 @@ export function ExplainTab({
                 <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
                   <Sparkles className="w-4 h-4" />
                 </div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Executive Summary</p>
+                <p className="text-xs font-semibold text-white/70 uppercase tracking-wider">Executive Summary</p>
               </div>
               <p className="text-sm leading-relaxed text-foreground/90 font-medium">
                 {formatInsightText(explanation.summary)}
@@ -196,7 +196,7 @@ export function ExplainTab({
                   </div>
                   <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Why This Model Won</p>
                 </div>
-                <p className="text-sm leading-relaxed text-muted-foreground">
+                <p className="text-sm leading-relaxed text-white/80">
                   {formatInsightText(explanation.why_winner)}
                 </p>
               </div>
@@ -210,7 +210,7 @@ export function ExplainTab({
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
                     <ListTodo className="w-4 h-4" />
                   </div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recommended Next Actions</p>
+                  <p className="text-xs font-semibold text-white/70 uppercase tracking-wider">Recommended Next Actions</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                   {explanation.actions.map((action, i) => (
@@ -218,7 +218,7 @@ export function ExplainTab({
                       <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 text-xs font-bold mt-0.5">
                         {i + 1}
                       </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{action}</p>
+                      <p className="text-xs text-white/80 leading-relaxed">{action}</p>
                     </div>
                   ))}
                 </div>
@@ -241,7 +241,7 @@ export function ExplainTab({
                     Domain Impact {domain && `— ${domain}`}
                   </p>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+                <p className="text-xs text-white/80 leading-relaxed">
                   {formatInsightText(explanation.domain_interpretation)}
                 </p>
               </div>
@@ -255,7 +255,7 @@ export function ExplainTab({
                   <div className="p-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-400">
                     <Compass className="w-4 h-4" />
                   </div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attribute Insights</p>
+                  <p className="text-xs font-semibold text-white/70 uppercase tracking-wider">Attribute Insights</p>
                 </div>
                 <div className="space-y-3.5">
                   {explanation.feature_insights.map((fi, i) => (
@@ -264,7 +264,7 @@ export function ExplainTab({
                         <div className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
                         <span className="text-xs font-semibold text-foreground/80 font-mono">{fi.feature}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground pl-3.5 leading-normal">{fi.insight}</p>
+                      <p className="text-xs text-white/80 pl-3.5 leading-normal">{fi.insight}</p>
                     </div>
                   ))}
                 </div>
@@ -276,7 +276,7 @@ export function ExplainTab({
               <div className="space-y-3">
                 <div className="flex items-center gap-2 mb-1 pl-1">
                   <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Strategic Roadmap</h3>
+                  <h3 className="text-xs font-semibold text-white/70 uppercase tracking-wider">Strategic Roadmap</h3>
                 </div>
                 <div className="space-y-3">
                   {nextSteps.map((step, i) => (
@@ -286,7 +286,7 @@ export function ExplainTab({
                       </Badge>
                       <div>
                         <p className="text-xs font-semibold mb-0.5 text-foreground/90">{step.title}</p>
-                        <p className="text-xs text-muted-foreground leading-normal">{step.detail}</p>
+                        <p className="text-xs text-white/80 leading-normal">{step.detail}</p>
                       </div>
                     </div>
                   ))}

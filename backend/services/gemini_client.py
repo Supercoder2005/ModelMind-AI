@@ -29,7 +29,7 @@ from prompts.prompts import (
     final_conclusion_prompt,
 )
 
-load_dotenv()
+load_dotenv(override=True)
 logger = logging.getLogger(__name__)
 
 
@@ -82,7 +82,7 @@ class GeminiClient:
         
         # Using Llama 3.3 70B as primary fallback for high quality structured output
         data = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "user", "content": prompt}
             ],

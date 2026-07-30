@@ -90,7 +90,8 @@ def pipeline_preprocess_and_engineer(df: pd.DataFrame, target_col: str | None, p
     # Numeric interactions (create interactions for top 3 highest variance numeric columns)
     if problem_type in ("classification", "regression"):
         numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c]) and c != target_col]
-        if len(numeric_cols) >= 2:
+        # Only synthesize features if we have a decent number of base features, otherwise it's irrelevant
+        if len(numeric_cols) >= 6:
             variances = df[numeric_cols].var().sort_values(ascending=False)
             top_var_cols = variances.index.tolist()[:3]
             if len(top_var_cols) >= 2:
@@ -120,7 +121,8 @@ def pipeline_preprocess_and_engineer(df: pd.DataFrame, target_col: str | None, p
         y = None
 
     # 4. Drop highly correlated features (collinearity selection)
-    if len(X.columns) > 1:
+    # Only drop collinear features if the feature space is large enough to afford losing them
+    if len(X.columns) >= 6:
         corr_matrix = X.corr().abs()
         upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
         to_drop = [column for column in upper_tri.columns if any(upper_tri[column] > 0.85)]
@@ -649,3 +651,180 @@ def run_all(df: pd.DataFrame, problem_type: str, target_col: str | None, analysi
         return run_timeseries(df, target_col, analysis_id)
     else:
         raise ValueError(f"Unknown problem type: {problem_type}")
+
+
+# ---------------------------------------------------------------------------
+# Streaming variant — yields individual model results as they complete
+# ---------------------------------------------------------------------------
+
+def run_all_stream(df: pd.DataFrame, problem_type: str, target_col: str | None, analysis_id: str):
+    """
+    Generator that yields individual model result dicts as they complete,
+    then a final 'summary' event.  Used by the SSE /models/run-stream endpoint.
+    """
+    import json
+    pt = problem_type.lower()
+
+    # Pre-processing step
+    try:
+        if pt in ("classification", "regression"):
+            X, y, prep_logs, feat_logs = pipeline_preprocess_and_engineer(df, target_col, pt)
+            X_train, X_val, X_test, y_train, y_val, y_test = pipeline_train_val_test_split(X, y)
+        else:
+            prep_logs, feat_logs = [], []
+    except Exception as e:
+        yield {"event": "error", "data": json.dumps({"message": str(e)})}
+        return
+
+    yield {"event": "preprocessing_done", "data": json.dumps({
+        "preprocessing_logs": prep_logs,
+        "feature_engineering_logs": feat_logs,
+    })}
+
+    all_results = []
+    winner_name = None
+
+    if pt == "classification":
+        models_dict = {
+            "Logistic Regression": LogisticRegression(max_iter=500, random_state=42),
+            "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
+            "SVM": SVC(probability=True, random_state=42),
+            "Gradient Boosting": GradientBoostingClassifier(n_estimators=100, random_state=42),
+            "XGBoost": xgb.XGBClassifier(n_estimators=100, use_label_encoder=False,
+                                          eval_metric="logloss", random_state=42, verbosity=0),
+        }
+        total = len(models_dict)
+        done = 0
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {
+                executor.submit(_run_classification_model, name, model,
+                                X_train, X_val, X_test, y_train, y_val, y_test): name
+                for name, model in models_dict.items()
+            }
+            for future in as_completed(futures):
+                name = futures[future]
+                done += 1
+                try:
+                    res, _ = future.result()
+                    all_results.append(res)
+                    yield {"event": "model_done", "data": json.dumps({
+                        "model": res,
+                        "progress": done,
+                        "total": total,
+                    })}
+                except Exception as e:
+                    logger.error("Stream model failed: %s — %s", name, e)
+                    yield {"event": "model_error", "data": json.dumps({
+                        "name": name, "error": str(e), "progress": done, "total": total,
+                    })}
+
+        if all_results:
+            all_results.sort(key=lambda r: r["f1"], reverse=True)
+            winner_name = all_results[0]["name"]
+            try:
+                _save_winner(models_dict[winner_name], X_train, y_train, X, analysis_id)
+                # Save encoders
+                _save_encoders(df, target_col, pt, analysis_id)
+            except Exception as e:
+                logger.warning("Could not save winner model: %s", e)
+
+        final = {
+            "problem_type": "classification",
+            "models": all_results,
+            "winner": winner_name,
+            "target_col": target_col,
+            "feature_names": X.columns.tolist() if all_results else [],
+            "classes": sorted(y.unique().tolist()) if hasattr(y, "unique") else [],
+            "preprocessing_logs": prep_logs,
+            "feature_engineering_logs": feat_logs,
+            "split_info": {
+                "train_size": len(X_train),
+                "val_size": len(X_val),
+                "test_size": len(X_test),
+            }
+        }
+
+    elif pt == "regression":
+        models_dict = {
+            "Linear Regression": LinearRegression(),
+            "Ridge": Ridge(alpha=1.0, random_state=42),
+            "Lasso": Lasso(alpha=0.01, random_state=42),
+            "XGBoost": xgb.XGBRegressor(n_estimators=100, random_state=42, verbosity=0),
+        }
+        total = len(models_dict)
+        done = 0
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {
+                executor.submit(_run_regression_model, name, model,
+                                X_train, X_val, X_test, y_train, y_val, y_test): name
+                for name, model in models_dict.items()
+            }
+            for future in as_completed(futures):
+                name = futures[future]
+                done += 1
+                try:
+                    res, _ = future.result()
+                    all_results.append(res)
+                    yield {"event": "model_done", "data": json.dumps({
+                        "model": res, "progress": done, "total": total,
+                    })}
+                except Exception as e:
+                    yield {"event": "model_error", "data": json.dumps({
+                        "name": name, "error": str(e), "progress": done, "total": total,
+                    })}
+
+        if all_results:
+            all_results.sort(key=lambda r: r.get("r2", 0), reverse=True)
+            winner_name = all_results[0]["name"]
+            try:
+                _save_winner(models_dict[winner_name], X_train, y_train, X, analysis_id)
+                _save_encoders(df, target_col, pt, analysis_id)
+            except Exception as e:
+                logger.warning("Could not save winner: %s", e)
+
+        final = {
+            "problem_type": "regression",
+            "models": all_results,
+            "winner": winner_name,
+            "target_col": target_col,
+            "feature_names": X.columns.tolist() if all_results else [],
+            "preprocessing_logs": prep_logs,
+            "feature_engineering_logs": feat_logs,
+            "split_info": {
+                "train_size": len(X_train),
+                "val_size": len(X_val),
+                "test_size": len(X_test),
+            }
+        }
+
+    else:
+        # For clustering/timeseries — fall back to run_all (no streaming support yet)
+        try:
+            final = run_all(df, problem_type, target_col, analysis_id)
+            yield {"event": "model_done", "data": json.dumps({
+                "model": final.get("models", [{}])[0] if final.get("models") else {},
+                "progress": 1, "total": 1,
+            })}
+        except Exception as e:
+            yield {"event": "error", "data": json.dumps({"message": str(e)})}
+            return
+
+    yield {"event": "done", "data": json.dumps(final)}
+
+
+def _save_encoders(df: pd.DataFrame, target_col: str | None, problem_type: str, analysis_id: str):
+    """
+    Saves a dict of fitted LabelEncoders for categorical feature columns so
+    What-If prediction can properly transform categorical inputs.
+    """
+    encoders: dict = {}
+    for col in df.columns:
+        if col == target_col:
+            continue
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            le = LabelEncoder()
+            le.fit(df[col].astype(str))
+            encoders[col] = le
+    path = os.path.join(UPLOAD_DIR, f"{analysis_id}_encoders.pkl")
+    joblib.dump(encoders, path)
+    logger.info("Saved %d encoders for analysis %s", len(encoders), analysis_id)

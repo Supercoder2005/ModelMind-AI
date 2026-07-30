@@ -12,11 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 from db.database import engine
 from db import models as db_models
-from routers import upload, analysis, models, explain, whatif, export, data
+from routers import upload, analysis, models, explain, whatif, export, data, preprocess
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -88,6 +88,7 @@ app.include_router(explain.router, prefix=PREFIX, tags=["Explain"])
 app.include_router(whatif.router, prefix=PREFIX, tags=["What-If"])
 app.include_router(export.router, prefix=PREFIX, tags=["Export"])
 app.include_router(data.router, prefix=PREFIX, tags=["Data"])
+app.include_router(preprocess.router, prefix=PREFIX, tags=["Preprocessing"])
 
 
 @app.get("/", tags=["Health"])

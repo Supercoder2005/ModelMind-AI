@@ -23,38 +23,49 @@ export function OverviewTab({ analysis }: { analysis: Analysis }) {
     <div className="space-y-5">
       {/* EDA Narrator Card */}
       {eda && (
-        <div className="gradient-border p-5 animate-fade-in">
-          <div className="flex items-start justify-between gap-4 mb-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h2 className="font-semibold text-sm">Auto EDA Narrator</h2>
-              <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">
-                {eda.confidence} confidence
-              </Badge>
+        <div className="relative overflow-hidden glass rounded-2xl p-6 border border-primary/20 shadow-[0_0_40px_oklch(0.72_0.2_280/10%)] animate-fade-in">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative z-10">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                </div>
+                <h2 className="font-bold text-sm text-foreground">Auto EDA Narrator</h2>
+                <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                  {eda.confidence} confidence
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <Badge className="text-xs bg-violet-500/20 text-violet-300 border-violet-500/30">
+                  {eda.problem_type}
+                </Badge>
+                <Badge className="text-xs bg-cyan-500/20 text-cyan-300 border-cyan-500/30">
+                  {eda.domain_guess}
+                </Badge>
+              </div>
             </div>
-            <div className="flex gap-1.5">
-              <Badge className="text-xs bg-violet-500/20 text-violet-300 border-violet-500/30">
-                {eda.problem_type}
-              </Badge>
-              <Badge className="text-xs bg-cyan-500/20 text-cyan-300 border-cyan-500/30">
-                {eda.domain_guess}
-              </Badge>
-            </div>
+            
+            <p className="text-sm text-white/90 font-medium leading-relaxed mb-5">
+              {eda.narrative}
+            </p>
+            
+            {eda.observations && eda.observations.length > 0 && (
+              <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+                <p className="text-xs font-bold text-primary mb-3 uppercase tracking-wider">Key Observations</p>
+                <ul className="space-y-2.5">
+                  {eda.observations.map((obs, i) => (
+                    <li key={i} className="flex items-start gap-2.5 text-sm">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0 shadow-[0_0_8px_oklch(0.72_0.2_280/80%)]" />
+                      <span className="text-white/80 leading-relaxed">{obs}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground leading-relaxed mb-4">{eda.narrative}</p>
-          {eda.observations && eda.observations.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Key Observations</p>
-              <ul className="space-y-1.5">
-                {eda.observations.map((obs, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                    {obs}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
 

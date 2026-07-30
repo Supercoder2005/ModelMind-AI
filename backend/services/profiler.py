@@ -71,7 +71,9 @@ def profile(df: pd.DataFrame) -> dict[str, Any]:
     result["column_details"] = columns_info
 
     # Sample for Gemini context (first 3 rows as list of dicts, stringified)
-    result["sample_rows"] = df.head(3).astype(str).to_dict(orient="records")
+    # Sample rows for interactive scatter plot (up to 2000 rows to prevent huge payloads)
+    sample_size = min(2000, len(df))
+    result["sample_rows"] = df.sample(n=sample_size, random_state=42).astype(str).to_dict(orient="records")
 
     return result
 

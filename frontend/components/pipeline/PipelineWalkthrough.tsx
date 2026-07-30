@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { DatasetModal } from "@/components/pipeline/DatasetModal";
 import { EDACharts } from "@/components/eda/EDACharts";
+import { ModelTrainingLive } from "@/components/models/ModelTrainingLive";
+import { useStore } from "@/lib/store";
 
 interface PipelineWalkthroughProps {
   analysis: Analysis;
@@ -57,7 +59,274 @@ function formatInsightText(text: string) {
   });
 }
 
+
+// ── Step 5: Preprocessing with real data from backend ──
+function Step5Preprocessing({ analysis, results, running, runModels }: {
+  analysis: Analysis;
+  results: ModelResults | null;
+  running: boolean;
+  runModels: () => Promise<void>;
+}) {
+  const hasResults = !!results;
+  const [prepInfo, setPrepInfo] = useState<any>(null);
+  const [loadingInfo, setLoadingInfo] = useState(false);
+
+  useEffect(() => {
+    if (hasResults) {
+      setLoadingInfo(true);
+      api.getPreprocessInfo(analysis.id)
+        .then(setPrepInfo)
+        .catch(() => {})
+        .finally(() => setLoadingInfo(false));
+    }
+  }, [hasResults, analysis.id]);
+
+  if (!hasResults) {
+    return (
+      <div className="text-center py-12 bg-black/20 rounded-3xl border border-white/5 p-6 space-y-4">
+        <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto" />
+        <h4 className="font-bold text-sm text-white">Preprocessing Not Yet Run</h4>
+        <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+          Please proceed to Step 8 (Model Competition) to start the machine learning pipeline. The exact preprocessing operations (null imputation, encoding, scaling) will be displayed here once the models are trained.
+        </p>
+      </div>
+    );
+  }
+
+  const prepLogs: string[] = (results as any)?.preprocessing_logs ?? prepInfo?.actual_preprocessing_logs ?? [];
+  const plannedOps = prepInfo?.planned_operations ?? [];
+
+  const typeColors: Record<string, string> = {
+    imputation: "bg-amber-500/10 border-amber-500/20 text-amber-300",
+    encoding: "bg-violet-500/10 border-violet-500/20 text-violet-300",
+    scaling: "bg-emerald-500/10 border-emerald-500/20 text-emerald-300",
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Pipeline flowchart */}
+      <div className="space-y-2">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Pipeline Applied</span>
+        <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/10 border border-white/5 rounded-2xl text-xs font-semibold">
+          <div className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-muted-foreground">Raw Data</div>
+          <ArrowRight className="w-4 h-4 text-muted-foreground" />
+          <div className="px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/25 text-amber-300">Null Imputation</div>
+          <ArrowRight className="w-4 h-4 text-muted-foreground" />
+          <div className="px-3 py-1.5 rounded-lg bg-violet-500/15 border border-violet-500/25 text-violet-300">Categorical Encoding</div>
+          <ArrowRight className="w-4 h-4 text-muted-foreground" />
+          <div className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 text-emerald-300">StandardScaler</div>
+          <ArrowRight className="w-4 h-4 text-muted-foreground" />
+          <div className="px-3 py-1.5 rounded-lg bg-primary/15 border border-primary/25 text-primary">Cleaned Dataset ✓</div>
+        </div>
+      </div>
+
+      {/* Actual preprocessing logs */}
+      {prepLogs.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Operations Applied ({prepLogs.length})
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {prepLogs.map((log, i) => {
+              const type = log.toLowerCase().includes("impute") ? "imputation"
+                : log.toLowerCase().includes("encod") ? "encoding"
+                : "scaling";
+              return (
+                <div key={i} className={`flex items-start gap-2 p-2.5 rounded-xl border text-[11px] ${typeColors[type]}`}>
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>{log}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Planned ops fallback */}
+      {prepLogs.length === 0 && plannedOps.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Operations Applied</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {plannedOps.map((op: any, i: number) => (
+              <div key={i} className={`flex items-start gap-2 p-2.5 rounded-xl border text-[11px] ${typeColors[op.type] ?? "bg-white/5 border-white/10 text-white/70"}`}>
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                <span>{op.description}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Download cleaned dataset */}
+      <div className="flex items-center gap-4 p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/15">
+        <div className="w-9 h-9 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
+          <CheckCircle className="w-5 h-5 text-emerald-400" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-white">Cleaned Dataset Ready</p>
+          <p className="text-[10px] text-muted-foreground">Download the preprocessed and encoded CSV for further analysis.</p>
+        </div>
+        <Button
+          size="sm"
+          className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white border-0"
+          onClick={() => window.open(api.cleanedDataUrl(analysis.id), "_blank")}
+        >
+          <Database className="w-3.5 h-3.5" />
+          Download CSV
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+
+// ── Step 8: Live Model Competition with SSE streaming ──
+function Step8ModelCompetition({ analysis, results, running, runModels }: {
+  analysis: Analysis;
+  results: ModelResults | null;
+  running: boolean;
+  runModels: () => Promise<void>;
+}) {
+  const { expertiseLevel } = useStore();
+  const [liveMode, setLiveMode] = useState(false);
+  const [liveResults, setLiveResults] = useState<ModelResults | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
+
+  const activeResults = liveResults ?? results;
+  const activeProblemType = analysis.problem_type ?? "classification";
+
+  const handleStartLive = () => {
+    setLiveMode(true);
+    setLiveError(null);
+    setLiveResults(null);
+  };
+
+  const handleLiveComplete = (res: ModelResults) => {
+    setLiveResults(res);
+    setLiveMode(false);
+    // Refresh the parent page analysis
+    window.dispatchEvent(new CustomEvent("modelmind:results-updated"));
+  };
+
+  if (!activeResults && !liveMode) {
+    return (
+      <div className="text-center py-12 bg-black/20 rounded-3xl border border-white/5 p-6 space-y-4">
+        <Trophy className="w-10 h-10 text-yellow-400 mx-auto" />
+        <h4 className="font-bold text-sm text-white">Model Competition</h4>
+        <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+          Train multiple ML algorithms simultaneously and watch them compete in real time. The best performer wins.
+        </p>
+        <Button onClick={handleStartLive} className="gap-2 px-6 bg-primary hover:bg-primary/90">
+          <Play className="w-4 h-4" />
+          Start Live Training
+        </Button>
+      </div>
+    );
+  }
+
+  if (liveMode) {
+    return (
+      <ModelTrainingLive
+        analysisId={analysis.id}
+        targetCol={analysis.target_col}
+        problemType={activeProblemType}
+        expertiseLevel={expertiseLevel}
+        onComplete={handleLiveComplete}
+        onError={(msg) => { setLiveError(msg); setLiveMode(false); }}
+      />
+    );
+  }
+
+  // Show leaderboard after training
+  return (
+    <div className="space-y-6">
+      {liveError && (
+        <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs">{liveError}</div>
+      )}
+
+      <div className="flex justify-between items-center gap-4">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Competitors Leaderboard</h4>
+        <div className="flex items-center gap-2">
+          <Badge className="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 flex gap-1 items-center px-3 py-1 font-bold text-[10px]">
+            <Trophy className="w-3.5 h-3.5 shrink-0 text-yellow-400" />
+            Winner: {activeResults?.winner}
+          </Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs border-white/10 h-7 gap-1"
+            onClick={handleStartLive}
+          >
+            <RefreshCw className="w-3 h-3" />
+            Re-train Live
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {activeResults?.models?.map((model, idx) => {
+          const isWinner = model.name === activeResults.winner;
+          const scoreLabel = activeProblemType === "classification"
+            ? "F1-Score"
+            : activeProblemType === "regression"
+            ? "R² Coeff"
+            : "Silhouette";
+          const scoreVal = activeProblemType === "classification"
+            ? ((model.f1 ?? 0) * 100).toFixed(2) + "%"
+            : activeProblemType === "regression"
+            ? ((model.r2 ?? 0) * 100).toFixed(2) + "%"
+            : model.silhouette?.toFixed(4);
+
+          const relativePct = activeProblemType === "classification"
+            ? (model.f1 ?? 0) * 100
+            : activeProblemType === "regression"
+            ? Math.max(0, (model.r2 ?? 0) * 100)
+            : ((model.silhouette ?? 0) + 1) * 50;
+
+          return (
+            <div
+              key={model.name}
+              className={`p-4 rounded-2xl border transition-all duration-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                isWinner
+                  ? "bg-yellow-500/8 border-yellow-500/25 shadow-lg"
+                  : "bg-black/20 border-white/5 hover:border-white/10"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-6 h-6 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center font-mono text-xs font-bold text-muted-foreground shrink-0">
+                  {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
+                </span>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-white">{model.name}</span>
+                    {isWinner && <Trophy className="w-3 h-3 text-yellow-400" />}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">Fit time: {model.training_time_s}s</span>
+                </div>
+              </div>
+              <div className="w-full sm:w-[250px] space-y-1 shrink-0">
+                <div className="flex justify-between text-[10px]">
+                  <span className="text-muted-foreground uppercase font-bold tracking-wider">{scoreLabel}</span>
+                  <span className="text-white font-bold font-mono">{scoreVal}</span>
+                </div>
+                <div className="w-full bg-black/50 h-2 rounded-full overflow-hidden border border-white/5">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${isWinner ? "bg-primary" : "bg-muted-foreground/50"}`}
+                    style={{ width: `${relativePct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 export function PipelineWalkthrough({
+
   analysis,
   results,
   running,
@@ -134,7 +403,7 @@ export function PipelineWalkthrough({
   };
 
   const isStepLocked = (stepNum: number) => {
-    return stepNum >= 5 && !results && !running;
+    return stepNum >= 9 && !results && !running;
   };
 
   const isNumeric = (colName: string) => {
@@ -587,53 +856,7 @@ export function PipelineWalkthrough({
 
             {/* ── STEP 5: Preprocessing ── */}
             {currentStep === 5 && (
-              <div className="space-y-6">
-                {isStepLocked(5) ? (
-                  <div className="text-center py-12 bg-black/20 rounded-3xl border border-white/5 p-6 space-y-4">
-                    <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto" />
-                    <h4 className="font-bold text-sm text-white">Auto Preprocessing Blocked</h4>
-                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                      Ingestion checks are complete. Run models to perform imputation, categorization, scaling, and training.
-                    </p>
-                    <Button 
-                      onClick={runModels} 
-                      disabled={running} 
-                      className="gap-2 px-6"
-                    >
-                      {running ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                      Start ML Pipeline
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Flow Diagram */}
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Pipeline Flowchart</span>
-                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 p-4 bg-muted/10 border border-white/5 rounded-2xl text-xs font-semibold">
-                        <div className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-muted-foreground">Raw Data</div>
-                        <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
-                        <div className="px-3 py-1.5 rounded-lg bg-primary/20 border border-primary/30 text-primary">Null Imputation</div>
-                        <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
-                        <div className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 text-violet-300">Target Encoding</div>
-                        <ArrowRight className="w-4 h-4 text-muted-foreground rotate-90 sm:rotate-0" />
-                        <div className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">MinMax Scaling</div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Preprocessing Operations Logs</h4>
-                      <div className="p-4 bg-black/40 border border-white/5 rounded-2xl font-mono text-[11px] leading-relaxed max-h-[220px] overflow-y-auto space-y-2 text-muted-foreground">
-                        {results?.models && (results as any).preprocessing_logs?.map((log: string, idx: number) => (
-                          <div key={idx} className="flex gap-2">
-                            <span className="text-primary font-bold">[✔️]</span>
-                            <span>{log}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <Step5Preprocessing analysis={analysis} results={results} running={running} runModels={runModels} />
             )}
 
             {/* ── STEP 6: Feature Engineering ── */}
@@ -645,25 +868,53 @@ export function PipelineWalkthrough({
                   <div className="space-y-6">
                     {/* Visual Highlights */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-start gap-3">
-                        <Sparkles className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <h5 className="text-xs font-bold text-white">Datetime Features Extracted</h5>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                            Splits date variables into year, month, and day components automatically.
-                          </p>
+                      {((results as any)?.feature_engineering_logs || []).some((l: string) => l.toLowerCase().includes("date")) && (
+                        <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-start gap-3">
+                          <Sparkles className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                          <div>
+                            <h5 className="text-xs font-bold text-white">Datetime Features Extracted</h5>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                              Splits date variables into year, month, and day components automatically.
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl flex items-start gap-3">
-                        <Layers className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
-                        <div>
-                          <h5 className="text-xs font-bold text-white">Numeric Pruning</h5>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                            Drops highly collinear variables with correlation coefficients above 0.85.
-                          </p>
+                      {((results as any)?.feature_engineering_logs || []).some((l: string) => l.toLowerCase().includes("interaction term")) && (
+                        <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl flex items-start gap-3">
+                          <Activity className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                          <div>
+                            <h5 className="text-xs font-bold text-white">Interaction Terms Synthesized</h5>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                              Multiplies highest variance features together to expose non-linear relationships.
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
+
+                      {((results as any)?.feature_engineering_logs || []).some((l: string) => l.toLowerCase().includes("collinear")) && (
+                        <div className="p-4 bg-violet-500/5 border border-violet-500/20 rounded-2xl flex items-start gap-3">
+                          <Layers className="w-5 h-5 text-violet-400 shrink-0 mt-0.5" />
+                          <div>
+                            <h5 className="text-xs font-bold text-white">Numeric Pruning</h5>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                              Drops highly collinear variables with correlation coefficients above 0.85 to reduce redundancy.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {!((results as any)?.feature_engineering_logs || []).some((l: string) => l.match(/date|interaction|collinear/i)) && (
+                        <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-start gap-3 col-span-1 sm:col-span-2">
+                          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                          <div>
+                            <h5 className="text-xs font-bold text-white">Optimal Feature Set Detected</h5>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                              The current dataset features were determined to be optimal. No automated engineering or pruning was required.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -738,77 +989,12 @@ export function PipelineWalkthrough({
 
             {/* ── STEP 8: Model Competition ── */}
             {currentStep === 8 && (
-              <div className="space-y-6">
-                {isStepLocked(8) ? (
-                  <p className="text-xs text-muted-foreground italic text-center py-6">Run Model Competition to review model leaderboard.</p>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="flex justify-between items-center gap-4">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Competitors Leaderboard</h4>
-                      <Badge className="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 flex gap-1 items-center px-3 py-1 font-bold text-[10px]">
-                        <Trophy className="w-3.5 h-3.5 shrink-0 text-yellow-400" />
-                        Winner: {results?.winner}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-3">
-                      {results?.models?.map((model, idx) => {
-                        const isWinner = idx === 0;
-                        const scoreLabel = activeProblemType === "classification" 
-                          ? "F1-Score" 
-                          : activeProblemType === "regression" 
-                            ? "R² Coeff" 
-                            : "Silhouette";
-                        const scoreVal = activeProblemType === "classification" 
-                          ? (model.f1! * 100).toFixed(2) + "%"
-                          : activeProblemType === "regression" 
-                            ? (model.r2! * 100).toFixed(2) + "%"
-                            : model.silhouette?.toFixed(4);
-
-                        const relativePct = activeProblemType === "classification" 
-                          ? (model.f1! * 100) 
-                          : activeProblemType === "regression" 
-                            ? Math.max(0, model.r2! * 100) 
-                            : (model.silhouette! + 1) * 50;
-
-                        return (
-                          <div 
-                            key={idx} 
-                            className={`p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                              isWinner 
-                                ? "bg-primary/10 border-primary/30 shadow-lg" 
-                                : "bg-black/20 border-white/5 hover:border-white/10"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="w-6 h-6 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center font-mono text-xs font-bold text-muted-foreground shrink-0">
-                                {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : idx + 1}
-                              </span>
-                              <div>
-                                <span className="text-xs font-bold text-white">{model.name}</span>
-                                <span className="text-[10px] text-muted-foreground block mt-0.5">Fit time: {model.training_time_s}s</span>
-                              </div>
-                            </div>
-
-                            <div className="w-full sm:w-[250px] space-y-1 shrink-0">
-                              <div className="flex justify-between text-[10px]">
-                                <span className="text-muted-foreground uppercase font-bold tracking-wider">{scoreLabel}</span>
-                                <span className="text-white font-bold font-mono">{scoreVal}</span>
-                              </div>
-                              <div className="w-full bg-black/50 h-2 rounded-full overflow-hidden border border-white/5">
-                                <div 
-                                  className={`h-full rounded-full ${isWinner ? 'bg-primary' : 'bg-muted-foreground'}`} 
-                                  style={{ width: `${relativePct}%` }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <Step8ModelCompetition
+                analysis={analysis}
+                results={results}
+                running={running}
+                runModels={runModels}
+              />
             )}
 
             {/* ── STEP 9: K-Fold Validation ── */}
@@ -888,27 +1074,56 @@ export function PipelineWalkthrough({
                     {activeProblemType === "classification" && results?.models?.[0]?.confusion_matrix && (
                       <div className="space-y-3">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Confusion Matrix Hits</h4>
-                        <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto">
-                          {results.models[0].confusion_matrix.map((row, rIdx) => 
-                            row.map((val, cIdx) => {
-                              const isHit = rIdx === cIdx;
-                              return (
-                                <div 
-                                  key={`${rIdx}-${cIdx}`} 
-                                  className={`p-4 rounded-2xl border text-center shadow-lg transition duration-300 hover:scale-[1.01] ${
-                                    isHit 
-                                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.05)]" 
-                                      : "bg-rose-500/10 border-rose-500/20 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.05)]"
-                                  }`}
-                                >
-                                  <span className="text-[9px] font-bold uppercase tracking-widest block opacity-70">
-                                    {isHit ? "True Hit" : "False Hit"}
-                                  </span>
-                                  <span className="text-xl font-black font-mono block mt-1">{val}</span>
+                        <div className="overflow-x-auto pb-2">
+                          <div 
+                            className="grid gap-2 min-w-max mx-auto" 
+                            style={{ gridTemplateColumns: `auto repeat(${results.models[0].confusion_matrix.length}, minmax(40px, 1fr))` }}
+                          >
+                            {/* Empty top-left cell */}
+                            <div className="text-[9px] text-muted-foreground/50 flex items-end justify-end pr-2 pb-1">Actual \ Pred</div>
+                            {/* Column headers (Predicted) */}
+                            {results.models[0].confusion_matrix.map((_, i) => (
+                              <div key={`col-${i}`} className="text-[10px] text-muted-foreground text-center font-bold truncate px-1 flex items-end justify-center pb-1" title={String(results.classes?.[i] ?? i)}>
+                                {String(results.classes?.[i] ?? i).substring(0, 6)}
+                              </div>
+                            ))}
+                            
+                            {/* Rows */}
+                            {results.models[0].confusion_matrix.map((row, rIdx) => (
+                              <div key={`row-${rIdx}`} className="contents">
+                                {/* Row header (Actual) */}
+                                <div className="text-[10px] text-muted-foreground flex items-center justify-end pr-2 font-bold truncate" title={String(results.classes?.[rIdx] ?? rIdx)}>
+                                  {String(results.classes?.[rIdx] ?? rIdx).substring(0, 6)}
                                 </div>
-                              );
-                            })
-                          )}
+                                {/* Cells */}
+                                {row.map((val: number, cIdx: number) => {
+                                  const isHit = rIdx === cIdx;
+                                  return (
+                                    <div 
+                                      key={`${rIdx}-${cIdx}`} 
+                                      className={`p-2 sm:p-3 rounded-xl border text-center transition duration-300 hover:scale-[1.05] flex flex-col justify-center items-center ${
+                                        isHit 
+                                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.05)]" 
+                                          : val > 0 
+                                            ? "bg-rose-500/10 border-rose-500/20 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.05)]"
+                                            : "bg-white/5 border-white/5 text-white/30"
+                                      }`}
+                                      title={`Actual: ${results.classes?.[rIdx] ?? rIdx} → Predicted: ${results.classes?.[cIdx] ?? cIdx} (${val} hits)`}
+                                    >
+                                      {results.models[0].confusion_matrix.length <= 2 && (
+                                        <span className="text-[8px] font-bold uppercase tracking-wider block opacity-70 mb-0.5">
+                                          {isHit ? "True" : "False"}
+                                        </span>
+                                      )}
+                                      <span className={`${results.models[0].confusion_matrix.length <= 2 ? 'text-xl' : 'text-sm'} font-black font-mono`}>
+                                        {val}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )}

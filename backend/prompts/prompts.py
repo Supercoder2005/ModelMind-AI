@@ -11,13 +11,14 @@ All prompts instruct Gemini to return ONLY valid JSON (no markdown fences, no pr
 
 def eda_prompt(profile: dict, domain: str | None = None) -> str:
     domain_hint = f'The user suspects the domain is: "{domain}".' if domain else "The domain is unknown — infer it."
+    stripped_profile = {k: v for k, v in profile.items() if k != "sample_rows"}
     return f"""
 You are an expert data scientist. Analyze the following dataset profile and respond with a JSON object.
 
 {domain_hint}
 
 Dataset Profile:
-{profile}
+{stripped_profile}
 
 Respond ONLY with a valid JSON object (no markdown, no extra text) with EXACTLY these keys:
 
@@ -187,9 +188,10 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
 
 def suggestions_prompt(profile: dict, domain: str | None = None) -> str:
     domain_hint = f'The domain is: "{domain}".' if domain else "The domain is unknown."
+    stripped_profile = {k: v for k, v in profile.items() if k != "sample_rows"}
     return f"""
 You are an expert data science advisor. Analyze this dataset profile:
-{profile}
+{stripped_profile}
 
 {domain_hint}
 

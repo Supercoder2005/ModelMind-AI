@@ -247,5 +247,19 @@ export const api = {
       missing_cells: string[];
     }[];
   }> => _fetch(`${API}/analysis/${id}/data?limit=${limit}`),
+
+  // Preprocessing info (planned & actual logs)
+  getPreprocessInfo: (id: string): Promise<{
+    analysis_id: string;
+    target_col: string | null;
+    problem_type: string | null;
+    planned_operations: { type: string; column: string; description: string; status: string }[];
+    actual_preprocessing_logs: string[];
+    feature_engineering_logs: string[];
+    models_run: boolean;
+  }> => _fetch(`${API}/analysis/${id}/preprocess-info`),
+
+  // Download cleaned CSV — returns the URL to open directly
+  cleanedDataUrl: (id: string): string => `${API}/analysis/${id}/cleaned-data`,
 };
 

@@ -203,8 +203,8 @@ export function UploadZone() {
                   if (userGoals.trim()) {
                     await api.patchAnalysis(uploadedId, { user_goals: userGoals });
                   }
-                  // Redirect to page with run=true to start pipeline immediately
-                  router.push(`/analysis/${uploadedId}?run=true`);
+                  // Redirect to page without auto-running models so user can walk through the pipeline manually
+                  router.push(`/analysis/${uploadedId}`);
                 } catch (e) {
                   console.error("Failed to save goals:", e);
                 } finally {
@@ -219,7 +219,7 @@ export function UploadZone() {
               ) : (
                 <Play className="w-4 h-4" />
               )}
-              Start Analysis & ML Pipeline
+              Go to Analysis Dashboard
             </Button>
           </div>
         </div>

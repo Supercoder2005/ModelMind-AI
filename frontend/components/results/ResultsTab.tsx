@@ -55,9 +55,9 @@ function ClassificationResults({ results }: { results: ModelResults }) {
               <table className="mx-auto text-sm">
                 <thead>
                   <tr>
-                    <th className="px-3 py-2 text-muted-foreground text-xs font-normal" />
+                    <th className="px-3 py-2 text-white/70 text-xs font-normal" />
                     {cm[0].map((_, j) => (
-                      <th key={j} className="px-3 py-2 text-muted-foreground text-xs font-normal">Pred {j}</th>
+                      <th key={j} className="px-3 py-2 text-white/70 text-xs font-normal">Pred {j}</th>
                     ))}
                   </tr>
                 </thead>
@@ -66,7 +66,7 @@ function ClassificationResults({ results }: { results: ModelResults }) {
                     const rowMax = Math.max(...row);
                     return (
                       <tr key={i}>
-                        <td className="px-3 py-2 text-muted-foreground text-xs">True {i}</td>
+                        <td className="px-3 py-2 text-white/70 text-xs">True {i}</td>
                         {row.map((val, j) => {
                           const intensity = rowMax > 0 ? val / rowMax : 0;
                           const isDiag = i === j;
@@ -92,7 +92,7 @@ function ClassificationResults({ results }: { results: ModelResults }) {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-muted-foreground mt-3 text-center">
+            <p className="text-xs text-white/60 mt-3 text-center">
               Diagonal = correct predictions. Off-diagonal = misclassifications.
             </p>
           </CardContent>
@@ -251,18 +251,18 @@ function ClusteringResults({ results }: { results: ModelResults }) {
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="font-semibold text-sm">{p.name}</p>
-                    <p className="text-xs text-muted-foreground italic mt-0.5">"{p.tagline}"</p>
+                    <p className="text-xs text-white/70 italic mt-0.5">"{p.tagline}"</p>
                   </div>
                   <div className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ background: p.color }} />
                 </div>
                 <div className="space-y-1 mb-3">
                   {p.characteristics.map((c, i) => (
-                    <div key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                    <div key={i} className="flex items-start gap-1.5 text-xs text-white/80">
                       <span className="text-foreground/50">•</span>{c}
                     </div>
                   ))}
                 </div>
-                <div className="p-2 rounded-lg bg-muted/30 border border-white/5 text-xs text-muted-foreground">
+                <div className="p-2 rounded-lg bg-muted/30 border border-white/5 text-xs text-white/80">
                   <strong className="text-foreground/70">Action:</strong> {p.action}
                 </div>
               </div>
@@ -334,7 +334,7 @@ function FeatureImportanceChart({ fi, modelName }: { fi: Record<string, number>;
         <div className="space-y-2">
           {data.map((d, i) => (
             <div key={d.name} className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground w-28 truncate text-right" title={d.name}>{d.name}</span>
+              <span className="text-xs text-white/80 w-28 truncate text-right" title={d.name}>{d.name}</span>
               <div className="flex-1 h-5 bg-muted/40 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-700"
@@ -344,7 +344,7 @@ function FeatureImportanceChart({ fi, modelName }: { fi: Record<string, number>;
                   }}
                 />
               </div>
-              <span className="text-xs font-mono text-muted-foreground w-12 text-right">{d.value}%</span>
+              <span className="text-xs font-mono text-white/80 w-12 text-right">{d.value}%</span>
             </div>
           ))}
         </div>

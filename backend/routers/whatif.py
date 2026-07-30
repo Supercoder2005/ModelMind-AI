@@ -2,7 +2,7 @@
 POST /api/v1/whatif/predict
 
 Loads the pickled winning model for an analysis and runs inference
-on user-supplied input values.
+on user-supplied input values, properly encoding categorical features.
 """
 import os
 import logging
@@ -35,6 +35,7 @@ def whatif_predict(payload: WhatIfPayload, db: Session = Depends(get_db)):
 
     model_path = os.path.join(UPLOAD_DIR, f"{payload.analysis_id}_model.pkl")
     col_path = os.path.join(UPLOAD_DIR, f"{payload.analysis_id}_columns.pkl")
+    enc_path = os.path.join(UPLOAD_DIR, f"{payload.analysis_id}_encoders.pkl")
 
     if not os.path.exists(model_path):
         raise HTTPException(status_code=422, detail="Trained model not found. Run model training first.")
@@ -45,30 +46,62 @@ def whatif_predict(payload: WhatIfPayload, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Could not load model: {e}")
 
+    # Load encoders if available
+    encoders: dict = {}
+    if os.path.exists(enc_path):
+        try:
+            encoders = joblib.load(enc_path)
+        except Exception as e:
+            logger.warning("Could not load encoders: %s", e)
+
     # Build input DataFrame with correct column order
-    input_dict = {col: [payload.input_values.get(col, 0)] for col in columns}
+    input_dict: dict = {}
+    for col in columns:
+        raw_val = payload.input_values.get(col, None)
+
+        if col in encoders:
+            # Categorical column — encode using the saved LabelEncoder
+            le = encoders[col]
+            str_val = str(raw_val) if raw_val is not None else ""
+            # Handle unseen categories gracefully
+            if str_val in le.classes_:
+                encoded_val = int(le.transform([str_val])[0])
+            else:
+                # Use mode class (index 0 of sorted classes)
+                logger.warning("Unseen category '%s' for column '%s', using 0", str_val, col)
+                encoded_val = 0
+            input_dict[col] = [encoded_val]
+        else:
+            # Numeric column — convert to float
+            try:
+                input_dict[col] = [float(raw_val) if raw_val is not None else 0.0]
+            except (TypeError, ValueError):
+                input_dict[col] = [0.0]
+
     X_input = pd.DataFrame(input_dict)
 
-    # Encode string columns
-    for col in X_input.select_dtypes(include=["object"]).columns:
-        X_input[col] = 0   # unknown category — encode as 0
+    logger.info("What-If input:\n%s", X_input.to_dict(orient="records"))
 
     try:
         prediction = pipe.predict(X_input)
         pred_value = prediction[0]
 
         response: dict = {
-            "prediction": float(pred_value) if not isinstance(pred_value, str) else pred_value,
+            "prediction": float(pred_value) if not isinstance(pred_value, (str, np.str_)) else str(pred_value),
+            "input_summary": {col: X_input[col].iloc[0] for col in columns[:10]},
         }
 
-        # Classification: add probabilities if available
+        # Classification: add class probabilities if available
         if record.problem_type == "classification" and hasattr(pipe, "predict_proba"):
-            proba = pipe.predict_proba(X_input)[0]
-            classes = pipe.classes_.tolist() if hasattr(pipe, "classes_") else list(range(len(proba)))
-            response["probabilities"] = [
-                {"class": str(c), "probability": round(float(p), 4)}
-                for c, p in zip(classes, proba)
-            ]
+            try:
+                proba = pipe.predict_proba(X_input)[0]
+                classes = pipe.classes_.tolist() if hasattr(pipe, "classes_") else list(range(len(proba)))
+                response["probabilities"] = [
+                    {"class": str(c), "probability": round(float(p), 4)}
+                    for c, p in zip(classes, proba)
+                ]
+            except Exception as e:
+                logger.warning("Could not compute probabilities: %s", e)
 
         return response
 
