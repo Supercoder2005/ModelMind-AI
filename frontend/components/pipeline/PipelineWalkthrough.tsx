@@ -1110,12 +1110,12 @@ export function PipelineWalkthrough({
                                       }`}
                                       title={`Actual: ${results.classes?.[rIdx] ?? rIdx} → Predicted: ${results.classes?.[cIdx] ?? cIdx} (${val} hits)`}
                                     >
-                                      {results.models[0].confusion_matrix.length <= 2 && (
+                                      {results?.models?.[0]?.confusion_matrix && results.models[0].confusion_matrix.length <= 2 && (
                                         <span className="text-[8px] font-bold uppercase tracking-wider block opacity-70 mb-0.5">
                                           {isHit ? "True" : "False"}
                                         </span>
                                       )}
-                                      <span className={`${results.models[0].confusion_matrix.length <= 2 ? 'text-xl' : 'text-sm'} font-black font-mono`}>
+                                      <span className={`${(results?.models?.[0]?.confusion_matrix?.length ?? 0) <= 2 ? 'text-xl' : 'text-sm'} font-black font-mono`}>
                                         {val}
                                       </span>
                                     </div>
